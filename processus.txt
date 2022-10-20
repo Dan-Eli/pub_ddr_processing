@@ -1,0 +1,3 @@
+Fonctions du plugin:
+- S'assurer que le projet (.qgs), les layers et les styles sont sauvegardés dans la BD
+-Faire un call à l'API de publication en envoyant le ControlFile.json
