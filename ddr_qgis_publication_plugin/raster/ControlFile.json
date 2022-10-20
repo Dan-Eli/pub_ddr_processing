@@ -1,0 +1,26 @@
+{
+    "generic_parameters": {
+        "DEPARTMENT": "NRCan", 
+        "DOWNLOAD_INFO_ID": "DDR_DOWNLOAD1", 
+        "EMAIL": "geoffroy.houle@nrcan-rncan.gc.ca", 
+        "METADATA_UUID": "d576e878-04f1-4c4f-8428-e16c371e9a3c", 
+        "QGIS_SERVER_ID": "DDR_QGS1"
+		"SERVICE_TYPE": "RASTER"
+    }, 
+    "service_parameters": [
+        {            
+            "LANGUAGE": "English",
+			"SERVICE_SCHEMA_NAME": "NRCan",
+            "PROJECT_FILENAME": "CDEM.qgs", 
+            "SERVICE_NAME": "CDEM_en"
+        }, 
+        {            
+            "LANGUAGE": "French", 
+            "SERVICE_SCHEMA_NAME": "NRCan",
+            "PROJECT_FILENAME": "CDEM.qgs", 
+            "SERVICE_NAME": "CDEM_fr"
+        }
+    ]
+}
+
+

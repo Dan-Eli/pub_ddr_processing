@@ -1,0 +1,6 @@
+BD qgis_datastore:
+HOST: qgis-stage-datastore-nlb-c06c8878a666c9de.elb.ca-central-1.amazonaws.com
+DB_NAME:qgis_datastore
+PORT: 1441
+USERNAME: sys_qgis_admin_stage
+PASWWORD: yMNg3Y+^6X4WE6cgTu6d^N#w@uNWW
