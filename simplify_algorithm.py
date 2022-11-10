@@ -29,12 +29,14 @@ QGIS Plugin for Simplification (Douglas-Peucker algorithm)
 
 import os
 import inspect
+import pathlib
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterDistance,
                        QgsProcessingParameterFeatureSource, QgsProcessingParameterFeatureSink,
                        QgsFeatureSink, QgsFeatureRequest, QgsLineString, QgsWkbTypes, QgsGeometry,
-                       QgsProcessingException)
+                       QgsProcessingException, QgsProcessingParameterMultipleLayers, QgsMapLayer,
+                       QgsVectorLayerExporter, QgsVectorFileWriter, QgsProject)
 import processing
 from .geo_sim_util import Epsilon, GsCollection, GeoSimUtil, GsFeature, ProgressBar
 
@@ -121,6 +123,11 @@ class SimplifyAlgorithm(QgsProcessingAlgorithm):
                           defaultValue=0.0,
                           parentParameterName='INPUT'))  # Make distance units match the INPUT layer units
 
+        self.addParameter(QgsProcessingParameterMultipleLayers(
+            'LAYERS',
+            self.tr("Input layers123"),
+            QgsProcessing.TypeVectorAnyGeometry))
+
         # 'OUTPUT' for the results
         self.addParameter(QgsProcessingParameterFeatureSink(
                           'OUTPUT',
@@ -136,7 +143,70 @@ class SimplifyAlgorithm(QgsProcessingAlgorithm):
         source_in = self.parameterAsSource(parameters, "INPUT", context)
         tolerance = self.parameterAsDouble(parameters, "TOLERANCE", context)
         validate_structure = self.parameterAsBool(parameters, "VALIDATE_STRUCTURE", context)
+        layers = self.parameterAsLayerList(parameters, 'LAYERS', context)
+        print (layers)
+        for layer in layers:
+            print(layer.name())
+            print(layer.isSpatial())
+            print(layer.geometryType())
+            print(layer.type())
+            file_name = "c:\\DATA\\test\\tttt.gpkg"
+            transform_context = QgsProject.instance().transformContext()
+            if layer.isSpatial():
+                if layer.type() == QgsMapLayer.VectorLayer:
+                    print(layer.geometryType())
+                    options = QgsVectorFileWriter.SaveVectorOptions()
+                    print (options)
+                    options.layerName = layer.name()
+                    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer if pathlib.Path(
+                        file_name).exists() else QgsVectorFileWriter.CreateOrOverwriteFile
+                    options.feedback=None
 
+                    error, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(layer = layer,
+                                                                                     fileName = file_name,
+                                                                                     transformContext = transform_context,
+                                                                                     options = options)
+                    print ('ZZZZZZZZZZ', error, error_message)
+#
+#                    opts = {}
+#                    opts['append'] = False
+#                    opts['update'] = True
+#                    opts['overwrite'] = True
+#                    error, errMsg = QgsVectorLayerExporter.exportLayer(layer, uri, 'ogr', layer.crs(),
+#                                                                       False, options=opts)
+#                    print (error, errMsg)
+#                    if error != QgsVectorLayerExporter.NoError:
+#                        raise IOError(u"Failed to add layer to database '{}': error {}".format(dbname, errMsg))
+#
+#
+#                #                    exporter = QgsVectorLayerExporter(uri=uri,
+#                                                      provider='ogr',
+#                                                      fields=layer.fields(),
+#                                                      crr=layer.crs(),
+#                                                      overwite=True,
+#                                                      geometryType=layer.geometryType())
+#                    exporter.addFeatures(layer.getFeatures())
+#
+#                else:
+#                    print ("Layer is not vector")
+#            else:
+#                print ("Layer is not Spatial data")#
+#
+#
+#            ret_code = QgsVectorLayerExporter.exportLayer(
+#                           layer=layer,
+#                           uri="c:\\DATA\\test\\t.gpkg",
+#                           providerKey='ogr',
+#                           destCRS=layer.crs(),
+#                           onlySelected=False)
+#            print (ret_code)
+#            uri = "c:\\DATA\\test\\t.gpkg"
+#            print("layer Geom: ", layer.wkbType())
+#            exporter = QgsVectorLayerExporter(uri, ogr, fields=layer.fields(), crs=layer.crs(),
+#                                              overwrite=True,
+#                                              geometryType=QgsWkbTypes.MultiSurface)
+#            exporter.addFeatures(my_layer.getFeatures())
+#
         if source_in is None:
             raise QgsProcessingException(self.invalidSourceError(parameters, "INPUT"))
 
