@@ -29,17 +29,45 @@ QGIS Plugin for Simplification (Douglas-Peucker algorithm)
 
 import os
 import inspect
-import pathlib
+import json
+import shutil
+import uuid
+import zipfile
+from typing import List
+from dataclasses import dataclass
+import tempfile
+from pathlib import Path
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterDistance,
                        QgsProcessingParameterFeatureSource, QgsProcessingParameterFeatureSink,
                        QgsFeatureSink, QgsFeatureRequest, QgsLineString, QgsWkbTypes, QgsGeometry,
                        QgsProcessingException, QgsProcessingParameterMultipleLayers, QgsMapLayer,
-                       QgsVectorLayerExporter, QgsVectorFileWriter, QgsProject)
+                       QgsVectorLayerExporter, QgsVectorFileWriter, QgsProject, QgsProcessingParameterEnum,
+                       QgsProcessingParameterString, QgsProcessingParameterFolderDestination)
 import processing
 from .geo_sim_util import Epsilon, GsCollection, GeoSimUtil, GsFeature, ProgressBar
 
+@dataclass
+class ControlFile:
+    """"
+    Declare the fields in the control control file
+    """
+    department: str = None
+    download_info_id: str = None
+    email: str = None
+    metadata_uuid: str = None
+    qgis_server_id: str = None
+    download_package_name: str = ''
+    core_subject_term: str = ''
+    csz_collection_linked: str = ''
+    in_project_filename: str = None
+    language: str = None
+    service_schema_name: str = None
+    control_file_dir: str = None
+    control_file_zip: str = None
+    write_project: str = None
+    json_document: str = None
 
 class SimplifyAlgorithm(QgsProcessingAlgorithm):
     """Main class defining the Simplify algorithm as a QGIS processing algorithm.
@@ -110,63 +138,225 @@ class SimplifyAlgorithm(QgsProcessingAlgorithm):
         """Define the inputs and outputs of the algorithm.
         """
 
-        # 'INPUT' is the recommended name for the main input parameter.
-        self.addParameter(QgsProcessingParameterFeatureSource(
-                          'INPUT',
-                          self.tr('Input layer'),
-                          types=[QgsProcessing.TypeVectorAnyGeometry]))
+#        # 'INPUT' is the recommended name for the main input parameter.
+#        self.addParameter(QgsProcessingParameterFeatureSource(
+#                          'INPUT',
+#                          self.tr('Input layer'),
+#                          types=[QgsProcessing.TypeVectorAnyGeometry]))
 
-        # 'TOLERANCE' to be used Douglas-Peucker line simplificatin
-        self.addParameter(QgsProcessingParameterDistance(
-                          'TOLERANCE',
-                          self.tr('Diameter tolerance'),
-                          defaultValue=0.0,
-                          parentParameterName='INPUT'))  # Make distance units match the INPUT layer units
+#        # 'TOLERANCE' to be used Douglas-Peucker line simplificatin
+#        self.addParameter(QgsProcessingParameterDistance(
+#                          'TOLERANCE',
+#                          self.tr('Diameter tolerance'),
+#                          defaultValue=0.0,
+#                          parentParameterName='INPUT'))  # Make distance units match the INPUT layer units
 
         self.addParameter(QgsProcessingParameterMultipleLayers(
             'LAYERS',
             self.tr("Input layers123"),
             QgsProcessing.TypeVectorAnyGeometry))
 
-        # 'OUTPUT' for the results
-        self.addParameter(QgsProcessingParameterFeatureSink(
-                          'OUTPUT',
-                          self.tr('Simplified')))
+        lst_department = ['eccc',
+                          'nrcan']
+        self.addParameter(QgsProcessingParameterEnum(
+            'DEPARTMENT',
+            self.tr("Select your department"),
+            options=lst_department,
+            usesStaticStrings=True,
+            allowMultiple=False))
+
+        lst_download_info_id = ["DDR_DOWNLOAD1"]
+        self.addParameter(QgsProcessingParameterEnum(
+            'DOWNLOAD_INFO_ID',
+            self.tr("Select your download info ID"),
+            options=lst_download_info_id,
+            defaultValue=lst_download_info_id[0],
+            usesStaticStrings=True,
+            allowMultiple=False))
+
+        self.addParameter(
+            QgsProcessingParameterString(
+                "EMAIL",
+                self.tr('Enter your email address')))
+
+        lst_qgs_server_id = ['DDR_QGS1']
+        self.addParameter(QgsProcessingParameterEnum(
+            'QGS_SERVER_ID',
+            self.tr('Select the QGIS server'),
+            options=lst_qgs_server_id,
+            defaultValue=lst_qgs_server_id[0],
+            usesStaticStrings=True,
+            allowMultiple=False))
+
+        lst_language = ['English', 'French']
+        self.addParameter(QgsProcessingParameterEnum(
+            'LANGUAGE',
+            self.tr('Select service language'),
+            options=lst_language,
+            usesStaticStrings=True,
+            allowMultiple=False))
+
+        self.addParameter(QgsProcessingParameterEnum(
+            'SERVICE_SCHEMA_NAME',
+            self.tr("Select the schema name to publish"),
+            options=lst_department,
+            usesStaticStrings=True,
+            allowMultiple=False))
+
+        lst_flag = ['Yes', 'No']
+        self.addParameter(QgsProcessingParameterEnum(
+            'WRITE_PROJECT',
+            self.tr('Write QGIS project file before publishing the service'),
+            options=lst_flag,
+            defaultValue=lst_flag[0],
+            usesStaticStrings=True,
+            allowMultiple=False))
+
+#        self.addParameter(QgsProcessingParameterFolderDestination(
+#                          "TMP_DIR",
+#                          optional=True,
+#                          self.tr('Select temporary working directory '),
+#            )
+#        )
+
+#        # 'OUTPUT' for the results
+#        self.addParameter(QgsProcessingParameterFeatureSink(
+#                          'OUTPUT',
+#                          self.tr('Simplified')))
 
     def processAlgorithm(self, parameters, context, feedback):
         """Main method that extract parameters and call Simplify algorithm.
         """
 
-        context.setInvalidGeometryCheck(QgsFeatureRequest.GeometryNoCheck)
+#        context.setInvalidGeometryCheck(QgsFeatureRequest.GeometryNoCheck)
 
-        # Extract parameter
-        source_in = self.parameterAsSource(parameters, "INPUT", context)
-        tolerance = self.parameterAsDouble(parameters, "TOLERANCE", context)
-        validate_structure = self.parameterAsBool(parameters, "VALIDATE_STRUCTURE", context)
+        # Extract parameters
+#        source_in = self.parameterAsSource(parameters, "INPUT", context)
+#        tolerance = self.parameterAsDouble(parameters, "TOLERANCE", context)
+#        validate_structure = self.parameterAsBool(parameters, "VALIDATE_STRUCTURE", context)
+
+
+        # Create the control file data structure
+        ctl_file = ControlFile()
+
+        # Extract the key in parameters
+        ctl_file.department = self.parameterAsString(parameters, 'DEPARTMENT', context)
+        ctl_file.download_info_id = self.parameterAsString(parameters, 'DOWNLOAD_INFO_ID', context)
+        ctl_file.email = self.parameterAsString(parameters, 'EMAIL', context)
+        ctl_file.qgs_server_id = self.parameterAsString(parameters, 'QGS_SERVER_ID', context)
+        ctl_file.language = self.parameterAsString(parameters, 'LANGUAGE', context)
+        ctl_file.service_schema_name = self.parameterAsString(parameters, 'SERVICE_SCHEMA_NAME', context)
+        ctl_file.write_project = self.parameterAsString(parameters, 'WRITE_PROJECT', context)
         layers = self.parameterAsLayerList(parameters, 'LAYERS', context)
+
+
+        ctl_file.metadata_uuid = str(uuid.uuid4())
+
+        # Create temporary directory
+        ctl_file.control_file_dir = tempfile.mkdtemp(prefix='qgis_')
+#        ctl_file.control_file_dir = Path(ctl_file.control_file_dir)
+
+        # Extract the QGIS project absolute file path
+        qgs_project = QgsProject().instance()
+        src_qgs_project_name = qgs_project.absoluteFilePath()
+
+        # Save (write) the QGS project if requested
+        if ctl_file.write_project == "Yes":
+            qgs_project.writePath(src_qgs_project_name)
+            print ("Fichier qgs write: ", src_qgs_project_name )
+
+        # Copy the QGIS project file (.qgs) in the temporary directory
+        file_name= Path(src_qgs_project_name).name
+        ctl_file.in_project_filename = os.path.join(ctl_file.control_file_dir, file_name)
+#        ctl_file.in_project_filename = Path(ctl_file.control_file_dir + "/" + file_name)
+        shutil.copy(src_qgs_project_name, ctl_file.in_project_filename)
+
+        # Create the name of the GeoPackage that will contain all the vector layers
+        file_name_gpkg = os.path.join(ctl_file.control_file_dir, "qgis_vector_layers.gpkg")
+
+        print (parameters)
+        print (ctl_file)
+
         print (layers)
+        # Export the selected vector layers into a GeoPackage
         for layer in layers:
             print(layer.name())
             print(layer.isSpatial())
             print(layer.geometryType())
             print(layer.type())
-            file_name = "c:\\DATA\\test\\tttt.gpkg"
             transform_context = QgsProject.instance().transformContext()
             if layer.isSpatial():
+                # Only select Spatial layers
                 if layer.type() == QgsMapLayer.VectorLayer:
+                    # Only select vector layers
                     print(layer.geometryType())
                     options = QgsVectorFileWriter.SaveVectorOptions()
                     print (options)
                     options.layerName = layer.name()
-                    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer if pathlib.Path(
-                        file_name).exists() else QgsVectorFileWriter.CreateOrOverwriteFile
+                    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer if Path(
+                         file_name_gpkg).exists() else QgsVectorFileWriter.CreateOrOverwriteFile
                     options.feedback=None
 
                     error, error_message = QgsVectorFileWriter.writeAsVectorFormatV2(layer = layer,
-                                                                                     fileName = file_name,
+                                                                                     fileName = file_name_gpkg,
                                                                                      transformContext = transform_context,
                                                                                      options = options)
                     print ('ZZZZZZZZZZ', error, error_message)
+
+        # Creation of the JSON control file
+        json_control_file = {
+            "generic_parameters": {
+                "department": ctl_file.department,
+                "download_info_id": ctl_file.download_info_id,
+                "email": ctl_file.email,
+                "metadata_uuid": ctl_file.metadata_uuid,
+                "qgis_server_id": ctl_file.qgs_server_id,
+                "download_package_name": ctl_file.download_info_id,
+                "core_subject_term": ctl_file.core_subject_term,
+                "czs_collection_linked": ctl_file.csz_collection_linked
+            },
+            "service_parameters": [
+                {
+                    "in_project_filename": ctl_file.in_project_filename,
+                    "language": ctl_file.language,
+                    "service_schema_name": ctl_file.service_schema_name
+                }
+            ]
+        }
+
+        # Serialize the JSON
+        json_object = json.dumps(json_control_file, indent=4)
+
+        # Write the JSON document
+        control_file_name = os.path.join(ctl_file.control_file_dir, "control_file.json")
+        with open(control_file_name, "w") as outfile:
+            outfile.write(json_object)
+
+        import web_pdb;
+        web_pdb.set_trace()
+        working_directory = os.getcwd()
+        os.chdir(ctl_file.control_file_dir)
+        working_directory1 = os.getcwd()
+        os.chdir(working_directory)
+        working_directory = os.getcwd()
+
+
+        # Change working directory to the temporary directory
+        current_dir = os.getcwd()  # Save current directory
+        os.chdir(ctl_file.control_file_dir)
+
+        # Create the zip file
+        lst_file_to_zip = [Path(control_file_name).name,
+                           Path(file_name_gpkg).name,
+                           Path(ctl_file.in_project_filename).name]
+        zip_file_name = os.path.join(ctl_file.control_file_dir,  "ddr_publish.zip")
+        with zipfile.ZipFile(zip_file_name, mode="w") as archive:
+            for file_to_zip in lst_file_to_zip:
+                archive.write(file_to_zip)
+
+        # Reset the current directory
+        os.chdir(current_dir)
+
 #
 #                    opts = {}
 #                    opts['append'] = False
