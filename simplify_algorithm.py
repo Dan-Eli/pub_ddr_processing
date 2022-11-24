@@ -39,7 +39,7 @@ import tempfile
 from pathlib import Path
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterDistance,
+from qgis.core import (Qgis, QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterDistance,
                        QgsProcessingParameterFeatureSource, QgsProcessingParameterFeatureSink,
                        QgsFeatureSink, QgsFeatureRequest, QgsLineString, QgsWkbTypes, QgsGeometry,
                        QgsProcessingException, QgsProcessingParameterMultipleLayers, QgsMapLayer,
@@ -69,6 +69,7 @@ class ControlFile:
     control_file_zip: str = None
     write_project: str = None
     json_document: str = None
+    layers: object = None
 
 class SimplifyAlgorithm(QgsProcessingAlgorithm):
     """Main class defining the Simplify algorithm as a QGIS processing algorithm.
@@ -202,16 +203,9 @@ class SimplifyAlgorithm(QgsProcessingAlgorithm):
             usesStaticStrings=True,
             allowMultiple=False))
 
+    def read_form_parameters(self, ctl_file, parameters, context, feedback):
+        """Reads the different parameters in the form and stores the content in the data structure"""
 
-    def processAlgorithm(self, parameters, context, feedback):
-        """Main method that extract parameters and call Simplify algorithm.
-        """
-
-
-        # Create the control file data structure
-        ctl_file = ControlFile()
-
-        # Extract the key in parameters
         ctl_file.department = self.parameterAsString(parameters, 'DEPARTMENT', context)
         ctl_file.download_info_id = self.parameterAsString(parameters, 'DOWNLOAD_INFO_ID', context)
         ctl_file.email = self.parameterAsString(parameters, 'EMAIL', context)
@@ -219,31 +213,216 @@ class SimplifyAlgorithm(QgsProcessingAlgorithm):
         ctl_file.language = self.parameterAsString(parameters, 'LANGUAGE', context)
         ctl_file.service_schema_name = self.parameterAsString(parameters, 'SERVICE_SCHEMA_NAME', context)
         ctl_file.write_project = self.parameterAsString(parameters, 'WRITE_PROJECT', context)
-        layers = self.parameterAsLayerList(parameters, 'LAYERS', context)
+        ctl_file.layers = self.parameterAsLayerList(parameters, 'LAYERS', context)
 
+        return
 
+    def copy_qgis_project_file(sefl, ctl_file, parameters, context, feedback):
+        """Creates a copy of the QGIS project file"""
+
+        feedback.pushInfo("WARNING: Check that the file ends with .qgs...")
+        qgs_project = QgsProject.instance()
+        if not qgs_project.isDirty():
+
+            # Extract the QGIS project absolute file path
+            src_qgs_project_name = qgs_project.absoluteFilePath()
+
+            # Create temporary directory
+            ctl_file.control_file_dir = tempfile.mkdtemp(prefix='qgis_')
+            feedback.pushInfo("Temporary directory created: {0}".format(ctl_file.control_file_dir))
+
+            # Copy the QGIS project file (.qgs) in the temporary directory
+            ctl_file.in_project_filename = Path(src_qgs_project_name).name
+            dst_qgs_project_name = os.path.join(ctl_file.control_file_dir, ctl_file.in_project_filename)
+            shutil.copy(src_qgs_project_name, dst_qgs_project_name)
+            feedback.pushInfo("INFO: QGIS project file copied: {0}".format(dst_qgs_project_name))
+
+            # Open the newly copied QGS project
+#            a = Qgis.ProjectReadFlags()
+#            a |= Qgis.ProjectReadFlag.DontResolveLayers
+#            if qgs_project.read(dst_qgs_project_name, a):
+#                return_code = True
+#            else:
+#                feedback.pushInfo("ERROR: Unable to read QGS file project: {0}".format(dst_qgs_project_name))
+#                return_code = False
+        else:
+            # Manage the case where the QGIS project contains unsaved information
+            feedback.pushInfo("ERROR: The QGIS project file contains unsaved information")
+            feedback.pushInfo("ERROR: Save the QGIS project file and rerun the processing plugin script...")
+            return_code = False
+
+        return return_code
+
+    def copy_layer_gpkg(self, ctl_file, parameters, context, feedback):
+        """Copy the selected layers in GeoPackage file"""
+
+        # Name of the GPKG file that will contain all the selected vector layers
+        file_name_gpkg = os.path.join(ctl_file.control_file_dir, "qgis_vector_layers.gpkg")
+        qgs_project = QgsProject.instance()
+
+        total = len(ctl_file.layers)
+        # Loop over each selected layers
+        for i, layer in enumerate(ctl_file.layers):
+#            transform_context = QgsProject.instance().transformContext()
+            if layer.isSpatial():
+                # Only process Spatial layers
+                if layer.type() == QgsMapLayer.VectorLayer:
+                    # Only select vector layer
+#                    options = QgsVectorFileWriter.SaveVectorOptions()
+#                    options.layerName = layer.name()
+#                    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer if Path(
+#                        file_name_gpkg).exists() else QgsVectorFileWriter.CreateOrOverwriteFile
+#                    options.feedback = None
+#                    str_output = "Copying layer: {0} ({1}/{2})".format(layer.name(), str(i + 1), str(total))
+#                    feedback.pushInfo(str_output)#
+#
+#                    style = QgsMapLayerStyleManager(layer)
+#                    current = style.currentStyle()
+#                    print(style.mapLayerStyles)
+#                    print("*******", current)
+
+                    #                    error, err1, err2, err3 = QgsVectorFileWriter.writeAsVectorFormatV3(layer = layer,
+                    #                                                                                     fileName = file_name_gpkg,
+                    #                                                                                     transformContext = transform_context,
+                    #                                                                                     options = options)
+
+                    # import web_pdb
+                    # web_pdb.set_trace()
+                    # l0 = qgs_project.mapLayersByName('coco')
+                    # layer0 = qgs_project.mapLayersByName('coco')[0]
+                    #        layer1 = qgs_project.mapLayersByName('nodatanodata2')[0]
+#                    output_path = "C:\\DATA\\test\\test3.gpkg"
+
+                    options = {}
+                    options['update'] = True
+                    options['driverName'] = 'GPKG'
+                    options['layerName'] = layer.name()
+                    ret_code, msg = QgsVectorLayerExporter.exportLayer(
+                        layer=layer,
+                        uri=file_name_gpkg,
+                        providerKey='ogr',
+                        onlySelected=False,
+                        options=options,
+                        destCRS=layer.crs())
+
+                    if ret_code == Qgis.VectorExportResult.Success:
+                        # Set the created GPKG layer the layer of QGS project file
+                        layer.setDataSource(file_name_gpkg, layer.name(), "ogr")
+                        feedback.setProgress(int(((i + 1) / total) * 100) - 1)
+                        return_code = True
+                    else:
+                        # Error during writing the GPKG file
+                        feedback.pushInfo("ERROR Error writing file: {01} ; Layer: {02}".format(file_name_gpkg,layer.name()))
+                        feedback.pushInfo("ERROR Error message: {01} ".format(msg))
+                        return_code = False
+                        break
+
+#                    qgs_project.removeMapLayer(layer.id())
+                else:
+                    feedback.pushInfo("WARNING Layer: {0} is not vector; it will not be transfered".format(layer.name()))
+                    return_code = True
+            else:
+                feedback.pushInfo("WARNING Layer: {0} is not spatial; it will not be transfered".format(layer.name()))
+                return_code = True
+
+            return return_code
+
+    def create_json_control_file(self, ctl_file, parameters, context, feedback):
+        """Creation and writing of the JSON control file"""
+
+        # Creation of the JSON control file
         ctl_file.metadata_uuid = str(uuid.uuid4())
+        json_control_file = {
+            "generic_parameters": {
+                "department": ctl_file.department,
+                "download_info_id": ctl_file.download_info_id,
+                "email": ctl_file.email,
+                "metadata_uuid": ctl_file.metadata_uuid,
+                "qgis_server_id": ctl_file.qgs_server_id,
+                "download_package_name": ctl_file.download_package_name,
+                "core_subject_term": ctl_file.core_subject_term,
+                "czs_collection_linked": ctl_file.csz_collection_linked
+            },
+            "service_parameters": [
+                {
+                    "in_project_filename": ctl_file.in_project_filename,
+                    "language": ctl_file.language,
+                    "service_schema_name": ctl_file.service_schema_name
+                }
+            ]
+        }
 
-        # Create temporary directory
-        ctl_file.control_file_dir = tempfile.mkdtemp(prefix='qgis_')
+        # Serialize the JSON
+        json_object = json.dumps(json_control_file, indent=4)
+
+        # Write the JSON document
+        control_file_name = os.path.join(ctl_file.control_file_dir, "ControlFile.json")
+        with open(control_file_name, "w") as outfile:
+            outfile.write(json_object)
+
+        feedback.pushInfo("INFO: Creation of the JSON control file: {01}".format(control_file_name))
+
+        return
 
 
-        # Extract the QGIS project absolute file path
-        qgs_project = QgsProject().instance()
-        src_qgs_project_name = qgs_project.absoluteFilePath()
+    def processAlgorithm(self, parameters, context, feedback):
+        """Main method that extract parameters and call Simplify algorithm.
+        """
+
+        import web_pdb
+        web_pdb.set_trace()
+
+        # Create the control file data structure
+        ctl_file = ControlFile()
+
+        # Extract the form parameters
+        self.read_form_parameters(ctl_file, parameters, context, feedback)
+
+        # Copy the QGIS project file (.qgs)
+        self.copy_qgis_project_file(ctl_file, parameters, context, feedback)
+
+        import web_pdb
+        web_pdb.set_trace()
+        # Copy the selected layers in the GPKG file
+        self.copy_layer_gpkg(ctl_file, parameters, context, feedback)
+
+        # Creation of the JSON control file
+        self.create_json_control_file(ctl_file, parameters, context, feedback)
+
+
+
+#        ctl_file.department = self.parameterAsString(parameters, 'DEPARTMENT', context)
+#        ctl_file.download_info_id = self.parameterAsString(parameters, 'DOWNLOAD_INFO_ID', context)
+#        ctl_file.email = self.parameterAsString(parameters, 'EMAIL', context)
+#        ctl_file.qgs_server_id = self.parameterAsString(parameters, 'QGS_SERVER_ID', context)
+#        ctl_file.language = self.parameterAsString(parameters, 'LANGUAGE', context)
+#        ctl_file.service_schema_name = self.parameterAsString(parameters, 'SERVICE_SCHEMA_NAME', context)
+#        ctl_file.write_project = self.parameterAsString(parameters, 'WRITE_PROJECT', context)
+#        layers = self.parameterAsLayerList(parameters, 'LAYERS', context)
+
+
+
+
+#        # Create temporary directory
+#        ctl_file.control_file_dir = tempfile.mkdtemp(prefix='qgis_')
+
+
+#  #      # Extract the QGIS project absolute file path
+#        qgs_project = QgsProject().instance()
+#        src_qgs_project_name = qgs_project.absoluteFilePath()
 
         # Save (write) the QGS project if requested
-        if ctl_file.write_project == "Yes":
-            qgs_project.writePath(src_qgs_project_name)
-            feedback.pushInfo("QGS Project file saved: {0}".format(src_qgs_project_name))
+ #       if ctl_file.write_project == "Yes":
+ #           qgs_project.writePath(src_qgs_project_name)
+ #           feedback.pushInfo("QGS Project file saved: {0}".format(src_qgs_project_name))
 
         #import web_pdb;
         #web_pdb.set_trace()
 
-        # Copy the QGIS project file (.qgs) in the temporary directory
-        ctl_file.in_project_filename = Path(src_qgs_project_name).name
-        dst_qgs_project_name = os.path.join(ctl_file.control_file_dir, ctl_file.in_project_filename)
-        shutil.copy(src_qgs_project_name, dst_qgs_project_name)
+#        # Copy the QGIS project file (.qgs) in the temporary directory
+#        ctl_file.in_project_filename = Path(src_qgs_project_name).name
+#        dst_qgs_project_name = os.path.join(ctl_file.control_file_dir, ctl_file.in_project_filename)
+#        shutil.copy(src_qgs_project_name, dst_qgs_project_name)
 
         # Create the name of the GeoPackage that will contain all the vector layers
         file_name_gpkg = os.path.join(ctl_file.control_file_dir, "qgis_vector_layers.gpkg")
@@ -335,6 +514,7 @@ class SimplifyAlgorithm(QgsProcessingAlgorithm):
 
         # Creation of the JSON control file
         feedback.pushInfo("Creating and serializing the JSON Control file")
+        ctl_file.metadata_uuid = str(uuid.uuid4())
         json_control_file = {
             "generic_parameters": {
                 "department": ctl_file.department,
