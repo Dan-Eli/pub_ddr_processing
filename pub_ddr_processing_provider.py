@@ -28,7 +28,7 @@ __copyright__ = '(C) 2021 by Daniel Pilon'
 __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
-from .simplify_algorithm import SimplifyAlgorithm
+from .simplify_algorithm import DdrPublish, DdrValidate
 import os
 
 import inspect
@@ -54,7 +54,8 @@ class PubDdrProvider(QgsProcessingProvider):
         """
         Loads all algorithms belonging to this provider.
         """
-        self.addAlgorithm(SimplifyAlgorithm())
+        self.addAlgorithm(DdrPublish())
+        self.addAlgorithm(DdrValidate())
         
         # add additional algorithms here
         # self.addAlgorithm(MyOtherAlgorithm())
@@ -74,7 +75,7 @@ class PubDdrProvider(QgsProcessingProvider):
 
         This string should be short (e.g. "Lastools") and localised.
         """
-        return self.tr('Publication DDR')
+        return self.tr('DDR Publication Management')
 
     def icon(self):
         """
