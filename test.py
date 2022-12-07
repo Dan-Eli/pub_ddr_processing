@@ -4,9 +4,59 @@ from dataclasses import dataclass
 from typing import List
 import pathlib
 import os
+import urllib
+import requests
+from urllib.request import urlopen, Request
+
+
+a = '1234567890'
+b = a.replace(a[0:0],"."*0)
+print (a)
+0/0
+url="https://opendata.gov.nl.ca/public/opendata/page/?page-id=datasets-spatial"
+httprequest = Request(url, headers={"Accept": "text/html",'User-Agent': 'Mozilla/5.0'})
+
+with urlopen(httprequest) as response:
+    print(response.status)
+    print(response.read().decode())
+
+0/0
+
+
+
 
 from pathlib import Path, PureWindowsPath
+import traceback
 
+
+
+from datetime import datetime
+
+try:
+    0/0
+    raise ValueError()
+except ValueError as err:
+    print ("Erreur", err)
+
+exit(0)
+
+
+now = datetime.now() # current date and time
+
+date_time = now.strftime("%Y-%m-%d %H:%M")
+print("date and time:",date_time)
+
+
+
+try:
+    raise ValueError('Testing exceptions: The input is in incorrect order', 'one', 'two', 'four')
+except ValueError as err:
+    e = traceback.format_exc()
+    print('Error: ', e)
+
+
+
+exit(0)
 # I've explicitly declared my path as being in Windows format, so I can use forward slashes in it.
 filename = PureWindowsPath("source_data\\text_files\\raw_data.txt")
 

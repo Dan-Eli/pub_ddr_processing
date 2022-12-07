@@ -32,10 +32,6 @@ def classFactory(iface):  # pylint: disable=invalid-name
     """
     #
     from .pub_ddr_processing import PubDdrPlugin
-    print ("coco")
     import os 
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    cwd = os.getcwd()
-    print (dir_path)
-    print (cwd)
+
     return PubDdrPlugin()

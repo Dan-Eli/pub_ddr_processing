@@ -18,7 +18,6 @@
 #  *                                                                         *
 #  ***************************************************************************/
 
-
 __author__ = 'Daniel Pilon'
 __date__ = '2021-01-27'
 __copyright__ = '(C) 2021 by Daniel Pilon'
@@ -28,7 +27,7 @@ __copyright__ = '(C) 2021 by Daniel Pilon'
 __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
-from .simplify_algorithm import DdrPublish, DdrValidate
+from .simplify_algorithm import DdrPublish, DdrValidate, DdrUnpublish
 import os
 
 import inspect
@@ -56,6 +55,7 @@ class PubDdrProvider(QgsProcessingProvider):
         """
         self.addAlgorithm(DdrPublish())
         self.addAlgorithm(DdrValidate())
+        self.addAlgorithm(DdrUnpublish())
         
         # add additional algorithms here
         # self.addAlgorithm(MyOtherAlgorithm())
@@ -83,7 +83,7 @@ class PubDdrProvider(QgsProcessingProvider):
         the Processing toolbox.
         """
         cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
-        icon = QIcon(os.path.join(os.path.join(cmd_folder, 'logo.png')))
+        icon = QIcon(os.path.join(os.path.join(cmd_folder, 'logo1.png')))
         return icon
 
     def longName(self):
