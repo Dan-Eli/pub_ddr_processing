@@ -27,7 +27,7 @@ __copyright__ = '(C) 2021 by Daniel Pilon'
 __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
-from .simplify_algorithm import DdrPublish, DdrValidate, DdrUnpublish
+from .simplify_algorithm import DdrPublish, DdrValidate, DdrUnpublish, DdrLogin
 import os
 
 import inspect
@@ -53,9 +53,11 @@ class PubDdrProvider(QgsProcessingProvider):
         """
         Loads all algorithms belonging to this provider.
         """
+        self.addAlgorithm(DdrLogin())
         self.addAlgorithm(DdrPublish())
         self.addAlgorithm(DdrValidate())
         self.addAlgorithm(DdrUnpublish())
+
         
         # add additional algorithms here
         # self.addAlgorithm(MyOtherAlgorithm())
@@ -75,7 +77,7 @@ class PubDdrProvider(QgsProcessingProvider):
 
         This string should be short (e.g. "Lastools") and localised.
         """
-        return self.tr('DDR Publication Management')
+        return self.tr('DDR Publication')
 
     def icon(self):
         """
@@ -83,7 +85,7 @@ class PubDdrProvider(QgsProcessingProvider):
         the Processing toolbox.
         """
         cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
-        icon = QIcon(os.path.join(os.path.join(cmd_folder, 'logo1.png')))
+        icon = QIcon(os.path.join(os.path.join(cmd_folder, 'logo.png')))
         return icon
 
     def longName(self):

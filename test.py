@@ -6,8 +6,105 @@ import pathlib
 import os
 import urllib
 import requests
+import json
 from urllib.request import urlopen, Request
 
+a = [
+  {
+    "theme_uuid": "a78c820c-9e31-4296-bf75-a94384c1b1c5",
+    "title": {
+      "en": "Agriculture, construction and land use",
+      "fr": "Agriculture, constructions et occupation du territoire"
+    }
+  },
+  {
+    "theme_uuid": "f0611e86-5863-4761-902e-e58baba0c110",
+    "title": {
+      "en": "Environment",
+      "fr": "Environnement"
+    }
+  },
+  {
+    "theme_uuid": "0f1c62fc-5325-483e-b2d9-fb98cfe397f5",
+    "title": {
+      "en": "Fauna, flora and biodiversity",
+      "fr": "Faune, flore et biodiversité"
+    }
+  },
+  {
+    "theme_uuid": "13244ca2-83b5-4ccc-bc18-689829cd5b94",
+    "title": {
+      "en": "Hydrography and hydrology",
+      "fr": "Hydrographie et hydrologie"
+    }
+  },
+  {
+    "theme_uuid": "9b1125c2-e280-4278-89c8-a497cf300f9e",
+    "title": {
+      "en": "Mining, energy and forestry",
+      "fr": "Mines, énergie et exploitation forestière"
+    }
+  },
+  {
+    "theme_uuid": "e7087e59-a57f-432b-81db-065f4d40e797",
+    "title": {
+      "en": "Science, technology and Earth observation",
+      "fr": "Sciences, technologies et observation de la Terre"
+    }
+  },
+  {
+    "theme_uuid": "9c9de3c4-e0dd-4c0d-b393-fce2147bf22f",
+    "title": {
+      "en": "Society",
+      "fr": "Société"
+    }
+  },
+  {
+    "theme_uuid": "2aaee1ae-e253-41bf-9f47-eeaa3a27e6a7",
+    "title": {
+      "en": "Topography, geology and natural disasters",
+      "fr": "Topographie, géologie et catastrophes naturelles"
+    }
+  },
+  {
+    "theme_uuid": "40b7310c-1409-4fa8-a007-eda4fbb99fa1",
+    "title": {
+      "en": "Toponymy and administrative boundaries",
+      "fr": "Toponymie et limites administratives"
+    }
+  },
+  {
+    "theme_uuid": "70187cc5-d8e7-4318-94e3-74e3586f8cf3",
+    "title": {
+      "en": "Transport and communication networks",
+      "fr": "Réseaux de transport et de communication"
+    }
+  }
+]
+for item in a:
+    title = item['title']
+    en = title['en']
+    fr = title['fr']
+    print (en)
+    print(fr)
+
+
+0/0
+
+
+url = 'https://qgis.ddr-stage.services.geo.ca/api/login'
+headers = {"accept": "application/json",
+           "Content-type": "application/json"}
+
+json_doc = { "password": "Dani3Eli!",
+             "username": "daniel-pilon"}
+json_str = json.dumps(json_doc)  # Serialize the json document
+print (json_str)
+response = requests.post(url, verify=False, headers=headers, json=json_doc)
+status = response.status_code
+print (status)
+print (response.json())
+0/0
 
 a = '1234567890'
 b = a.replace(a[0:0],"."*0)
