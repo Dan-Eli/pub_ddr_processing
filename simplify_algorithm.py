@@ -50,8 +50,59 @@ from qgis.core import (Qgis, QgsProcessing, QgsProcessingAlgorithm, QgsProcessin
                        QgsProviderRegistry, QgsProcessingParameterAuthConfig,  QgsApplication,  QgsAuthMethodConfig)
 
 
-global CSZ_THEMES_EN
-CSZ_THEMES_EN = [""]
+class CszThemes(object):
+
+    def __init__(self):
+
+        self.json_theme = []
+
+    def add_themes(self, json_theme):
+
+        self.json_theme = json_theme
+        # Verify the structure/content of the JSON document
+        try:
+            for item in self.json_theme:
+                theme_uuid = item['theme_uuid']
+                title = item['title']
+                theme_en = title['en']
+                theme_fr = title['fr']
+        except KeyError:
+            # Bad structure raise an exception and crash
+            raise UserMessageException("Invalid structure of the JSON theme response from the DDR request")
+
+    def get_theme_lst(self, language):
+        # Extract a theme list in a given language
+#
+        if language not in ["fr", "en"]:
+            raise UserMessageException("Internal error: Invalid language")
+        theme_lst = []
+        for item in self.json_theme:
+            title = item['title']
+            theme_lst.append(title[language])
+
+        return theme_lst
+
+    def get_theme_uuid(self, title):
+        # Get the theme UUID for a theme title
+
+        for item in self.json_theme:
+            item_uuid = item['theme_uuid']
+            item_title = item['title']
+            item_title_en = item_title['en']
+            item_title_fr = item_title['fr']
+            if title in (item_title_en, item_title_fr):
+                break
+            else:
+                theme_uuid = None
+
+        if item_uuid is None:
+            print ("title: ", title)
+            raise UserMessageException(f"Internal error: The 'title' is not found...")
+
+        return theme_uuid
+
+
+CSZ_THEMES = CszThemes()
 
 @dataclass
 class ControlFile:
@@ -153,6 +204,8 @@ class Utils():
         """Creation and writing of the JSON control file"""
 
         # Creation of the JSON control file
+        theme_uuid = CSZ_THEMES.get_theme_uuid(ctl_file.csz_collection_theme)
+
         json_control_file = {
             "generic_parameters": {
                 "department": ctl_file.department,
@@ -162,7 +215,7 @@ class Utils():
                 "qgis_server_id": ctl_file.qgs_server_id,
                 "download_package_name": ctl_file.download_package_name,
                 "core_subject_term": ctl_file.core_subject_term,
-                "czs_collection_theme": ctl_file.csz_collection_theme
+                "czs_collection_theme": theme_uuid
             },
             "service_parameters": [
                 {
@@ -186,22 +239,22 @@ class Utils():
 
         return
 
-    @staticmethod
-    def extact_csz_themes(ctl_file, json_response):
-        """Extract the English and French theme from the JSON response"""
-
-        global CSZ_THEMES_EN
-        CSZ_THEMES_EN = []
-        CSZ_THEMES_EN.append("40b7310c-1409-4fa8-a007-eda4fbb99fa1")
-        ctl_file.csz_themes_en = []
-        ctl_file.csz_themes_fr = []
-        for item in json_response:
-            title = item['title']
-            theme_en = title['en']
-            theme_fr = title['fr']
-            CSZ_THEMES_EN.append(theme_en)
-            ctl_file.csz_themes_en.append(theme_en)
-            ctl_file.csz_themes_fr.append(theme_fr)
+#    @staticmethod
+#    def extact_csz_themes(ctl_file, json_response):
+#        """Extract the English and French theme from the JSON response"""
+#
+#        global CSZ_THEMES_EN
+#        CSZ_THEMES_EN = []
+#        CSZ_THEMES_EN.append("40b7310c-1409-4fa8-a007-eda4fbb99fa1")
+#        ctl_file.csz_themes_en = []
+#        ctl_file.csz_themes_fr = []
+#        for item in json_response:
+#            title = item['title']
+#            theme_en = title['en']
+#            theme_fr = title['fr']
+#            CSZ_THEMES_EN.append(theme_en)
+#            ctl_file.csz_themes_en.append(theme_en)
+#            ctl_file.csz_themes_fr.append(theme_fr)
 
     @staticmethod
     def read_csz_themes(ctl_file, feedback):
@@ -210,7 +263,7 @@ class Utils():
         url = "https://qgis.ddr-stage.services.geo.ca/api/czs_themes"
         str_date_time = Utils.get_date_time()
 
-        global ACCESS_TOKEN
+#        global ACCESS_TOKEN
 
         str_date_time = Utils.get_date_time()
         headers = {'accept': 'application/json',
@@ -228,8 +281,7 @@ class Utils():
                 msg = "Reads the available Clip Zip Ship Themes."
                 feedback.pushInfo(f"{str_date_time} - INFO: {msg}")
                 json_response = response.json()
-                print (json_response)
-                Utils.extact_csz_themes(ctl_file, json_response)
+                CSZ_THEMES.add_themes(json_response)
         except Exception:
             print ('ca plante....')
 
@@ -467,13 +519,16 @@ class UtilsGui():
 
     HELP_USAGE = """
         <b>Usage</b>
-        <u>Select the input vector layer(s) to publish</u> : Only select the layers you wish to publish. Non vector layers \
+        <u>Select the input vector layer(s) to publish</u>: Only select the layers you wish to publish. Non vector layers \
         will not appear in the list of selectable layers.
-        <u>Select the department</u> : Select which department own the publication.
-        <u>Select the download info ID</u> : Download ID info (no choice).
-        <u>Enter your email address</u> : Email address used to send publication notification.
-        <u>Select the QGIS server</u> : Name of the QGIS server used for the publication (no choice).
+        <u>Select the department</u>: Select which department own the publication.
+        <u>Enter the metadata UUID</u>: Enter the UUID associated to this UUID.
+        <u>Select the download info ID</u>: Download ID info (no choice).
+        <u>Enter your email address</u>: Email address used to send publication notification.
+        <u>Select the QGIS server</u>: Name of the QGIS server used for the publication (no choice).
+        <u>Select the language</u>: Select the language English/French for the communication.  
         <u>Select the schema named used for publication</u> : Name of the Schema used for the publication in the QGIS server.
+        <u>Select the CSZ theme</u>: Select the theme under which the project will be published in the clip ship zip (CSZ) 
         <u>Keep temporary files (for debug purpose)</u> : Flag (Yes/No) for keeping/deleting temporary files.
     """
 
@@ -578,7 +633,7 @@ class UtilsGui():
         self.addParameter(QgsProcessingParameterEnum(
             name='CSZ_THEMES',
             description=self.tr("Select the theme under which you want to publish your project in the clip ship zip (CSZ)"),
-            options=CSZ_THEMES_EN,
+            options=CSZ_THEMES.get_theme_lst("en"),
             usesStaticStrings=True,
             defaultValue="coco",
             allowMultiple=False))
@@ -590,7 +645,7 @@ class UtilsGui():
             name='KEEP_FILES',
             description=self.tr('Keep temporary files (for debug purpose)'),
             options=lst_flag,
-            defaultValue=lst_flag[0],
+            defaultValue=lst_flag[1],
             usesStaticStrings=True,
             allowMultiple=False))
 
@@ -642,7 +697,7 @@ class DdrPublish(QgsProcessingAlgorithm):
     def groupId(self):  # pylint: disable=no-self-use
         """Returns the unique ID of the group this algorithm belongs to.
         """
-        return 'Management'
+        return 'Management (second step)'
 
     def flags(self):
 
@@ -788,7 +843,7 @@ class DdrValidate(QgsProcessingAlgorithm):
     def groupId(self):  # pylint: disable=no-self-use
         """Returns the unique ID of the group this algorithm belongs to.
         """
-        return 'Management'
+        return 'Management (second step)'
 
     def flags(self):
 
@@ -932,7 +987,7 @@ class DdrUnpublish(QgsProcessingAlgorithm):
     def groupId(self):  # pylint: disable=no-self-use
         """Returns the unique ID of the group this algorithm belongs to.
         """
-        return 'Management'
+        return 'Management (second step)'
 
     def flags(self):
 
