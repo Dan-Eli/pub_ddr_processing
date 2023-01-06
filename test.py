@@ -8,6 +8,48 @@ import urllib
 import requests
 import json
 from urllib.request import urlopen, Request
+import re
+import http.client
+print(http.client.responses[504])
+0/0
+
+
+msg = """Le layer 'nodatanodata2', dans le projet fran\u00e7ais, a un nom court 'test1_fr__nodota' qui n'a pas d'\u00e9quivalance dans le projet anglais.\n
+Le layer 'coco', dans le projet fran\u00e7ais, a un nom court 'test1_fr__coco' qui n'a pas d'\u00e9quivalance dans le projet anglais. """
+
+print (msg.encode('utf-8').decode('utf-8'))
+
+0/0
+
+
+msg1 = bytes(msg,'utf-8').decode('utf-8')
+
+print(msg1)
+0/0
+
+repl = lambda m: m.group().encode('ascii', 'strict').decode('unicode-escape')
+
+print (msg.decode('unicode-escape').encode('utf-8'))
+
+
+0/0
+
+@dataclass
+class coco:
+    a: str
+    b: str
+
+@dataclass
+class bozo:
+    c: coco
+    b: str = None
+
+d = bozo("s", "d")
+print (d)
+0/0
+
+
+
 
 a = [
   {
