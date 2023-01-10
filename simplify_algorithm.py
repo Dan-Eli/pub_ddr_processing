@@ -35,6 +35,7 @@ import requests
 import shutil
 import tempfile
 import time
+import unicodedata
 import zipfile
 from datetime import datetime
 from dataclasses import dataclass
@@ -49,7 +50,7 @@ from qgis.core import (Qgis, QgsProcessing, QgsProcessingAlgorithm, QgsProcessin
                        QgsProcessingParameterString, QgsProcessingParameterFolderDestination,
                        QgsMapLayerStyleManager, QgsReadWriteContext, QgsDataSourceUri,  QgsDataProvider,
                        QgsProviderRegistry, QgsProcessingParameterAuthConfig,  QgsApplication,  QgsAuthMethodConfig,
-                       QgsProcessingParameterFile)
+                       QgsProcessingParameterFile, QgsProcessingParameterDefinition)
 
 
 class ResponseCodes(object):
@@ -156,7 +157,7 @@ class ResponseCodes(object):
         status = response.status_code
 
         if status == 200:
-            Utils.push_info(feedback, f"INFO: Satus code: {status}")
+            Utils.push_info(feedback, f"INFO: Status code: {status}")
             msg = "Reading the user email."
             Utils.push_info(feedback, f"INFO: {msg}")
             json_response = response.json()
@@ -228,11 +229,65 @@ class DdrInfo(object):
 
     def __init__(self):
 
+        self.qgis_layer_name_en = None
+        self.qgis_layer_name_fr = None
+        self.short_name_en = None
+        self.short_name_fr = None
         self.json_theme = []
         self.json_department = []
         self.json_email = []
 
-    def add_email (self, json_email):
+    def init_project_file(self):
+
+        self.qgis_layer_name_en = []
+        self.qgis_layer_name_fr = []
+        self.short_name_en = []
+        self.short_name_fr = []
+
+    def add_layer(self, src_layer, language):
+
+        short_name = src_layer.shortName()
+
+        # validate that the short name is present
+        if short_name is None or short_name == "":
+            raise UserMessageException(f"The short name for layer {src_layer.name()} is missing")
+
+        # Validate that the short name is not duplicate
+        if language == "EN":
+            qgis_layer_name = self.qgis_layer_name_en
+        else:
+            qgis_layer_name = self.qgis_layer_name_fr
+
+        if short_name not in qgis_layer_name:
+            qgis_layer_name.append(short_name)
+        else:
+            raise UserMessageException(f"Duplicate short name {short_name} for layer {src_layer.name()}")
+
+    def get_layer_short_name(self, src_layer):
+
+        short_name = src_layer.shortName()
+
+        short_name = short_name.replace(" ", "_")
+        short_name = short_name.lower()
+
+        try:
+            short_name = unicode(short_name, 'utf-8')
+        except (TypeError, NameError):  # unicode is a default on python 3
+            pass
+        short_name = unicodedata.normalize('NFD', short_name)
+        short_name = short_name.encode('ascii', 'ignore')
+        short_name = short_name.decode("utf-8")
+
+        return short_name
+
+    def get_nbr_layers(self):
+
+        a = len(self.qgis_layer_name_en)
+        b = len(self.qgis_layer_name_fr)
+        return max(a,b)
+
+
+    def add_email(self, json_email):
 
         self.json_email = json_email
 
@@ -327,7 +382,7 @@ class ControlFile:
 ##    csz_collection_theme: str = ''
     in_project_filename: str = None
     language: str = None
-    service_schema_name: str = None
+##    service_schema_name: str = None
     gpkg_file_name: str = None          # Name of Geopakage containing the vector layers
     control_file_dir: str = None        # Name of temporary directory
     control_file_name: str = None       # Name of the control file
@@ -337,12 +392,12 @@ class ControlFile:
     dst_qgs_project_name: str = None    # Name of the output QGIS project file
 #    csz_themes_en: [] = None            # List of the themes_en for the CSZ
 #    csz_themes_fr: [] = None            # List of the themes_en for the CSZ
-    qgis_project_file_en: str = None    # Name of the input English QGIS project file
-    qgis_project_file_fr: str = None    # Name of the input French QGIS project file
-    qgis_layer_name_en: [] = None       # Name of the QGIS English layers
-    qgis_layer_name_fr: [] = None       # Name of the QGIS French layers
-    gpkg_layer_name: [] = None          # Name of the layers in the GPKG file
-    out_qgs_project_file_en: str = None # Name out the output English project file
+    qgis_project_file_en: str = None     # Name of the input English QGIS project file
+    qgis_project_file_fr: str = None     # Name of the input French QGIS project file
+#    qgis_layer_name_en: [] = None        # Name of the QGIS English layers
+#    qgis_layer_name_fr: [] = None        # Name of the QGIS French layers
+#    gpkg_layer_name: [] = None           # Name of the layers in the GPKG file
+    out_qgs_project_file_en: str = None  # Name out the output English project file
     out_qgs_project_file_fr: str = None  # Name out the output English project file
 
 
@@ -355,6 +410,9 @@ class Utils():
 
     @staticmethod
     def process_algorithm(self, process_type, parameters, context, feedback):
+
+        # Init the project files
+        DDR_INFO.init_project_file()
 
         # Create the control file data structure
         ctl_file = ControlFile()
@@ -424,7 +482,7 @@ class Utils():
             "generic_parameters": {
                 "department": ctl_file.department,
                 "download_info_id": ctl_file.download_info_id,
-                "email": ctl_file.email,
+                "email": DDR_INFO.get_email(),
                 "metadata_uuid": ctl_file.metadata_uuid,
                 "qgis_server_id": ctl_file.qgs_server_id,
                 "download_package_name": ctl_file.download_package_name,
@@ -435,12 +493,12 @@ class Utils():
                 {
                     "in_project_filename": Path(ctl_file.out_qgs_project_file_en).name,
                     "language": 'English',
-                    "service_schema_name": ctl_file.service_schema_name
+                    "service_schema_name": ctl_file.department
                 },
                 {
                     "in_project_filename": Path(ctl_file.out_qgs_project_file_fr).name,
                     "language": 'French',
-                    "service_schema_name": ctl_file.service_schema_name
+                    "service_schema_name": ctl_file.department
                 }
             ]
         }
@@ -547,10 +605,6 @@ class Utils():
         # Clear or Close  the actual QGS project
         qgs_project.clear()
 
-        ctl_file.qgis_layer_name_en = []
-        ctl_file.qgis_layer_name_fr = []
-        ctl_file.gpkg_layer_name = []
-
         # Read the French QGIS project
         if ctl_file.qgis_project_file_fr != "":
             # Read the project file
@@ -563,9 +617,11 @@ class Utils():
 
             qgs_project = QgsProject.instance()
             for src_layer in qgs_project.mapLayers().values():
-                if src_layer.type() == QgsMapLayer.VectorLayer:
-                    ctl_file.qgis_layer_name_fr.append(src_layer.name())  # Add the name of the QGIS layer name
-                    ctl_file.gpkg_layer_name.append(src_layer.name())  # Add the name of the GPKG layer name
+                DDR_INFO.add_layer(src_layer, "FR")
+#                if src_layer.type() == QgsMapLayer.VectorLayer:
+#                    ctl_file.qgis_layer_name_fr.append(src_layer.name())  # Add the name of the QGIS layer name
+#                   ctl_file.gpkg_layer_name.append(src_layer.name())  # Add the name of the GPKG layer name
+#                    print ("Short name:", src_layer.shortName())
 
         # Read the English QGIS project
         if ctl_file.qgis_project_file_en != "":
@@ -579,33 +635,34 @@ class Utils():
             qgs_project = QgsProject.instance()
             ctl_file.gpkg_layer_name = []  # Reset the Geopackage layer name
             for src_layer in qgs_project.mapLayers().values():
-                if src_layer.type() == QgsMapLayer.VectorLayer:
-                    ctl_file.qgis_layer_name_en.append(src_layer.name())  # Add the name of the QGIS layer name
-                    ctl_file.gpkg_layer_name.append(src_layer.name())  # Add the name of the GPKG layer name
+                DDR_INFO.add_layer(src_layer, "EN")
+#                if src_layer.type() == QgsMapLayer.VectorLayer:
+#                    ctl_file.qgis_layer_name_en.append(src_layer.name())  # Add the name of the QGIS layer name
+#                    ctl_file.gpkg_layer_name.append(src_layer.name())  # Add the name of the GPKG layer name
 
-    @staticmethod
-    def remove_unselected_layers(ctl_file, feedback):
-        """Remove from the .qgs project file all the unselected layers (only keep selected layers)"""
-
-        # Extract the name of the selected layers
-        lst_layer_name = []
-        for layer in ctl_file.layers:
-            lst_layer_name.append(layer.name())
-
-        qgs_project = QgsProject.instance()
-        for layer in qgs_project.mapLayers().values():
-            if lst_layer_name.count(layer.name()) == 0:
-                # The layer is not selected and must be removed
-                file = True
-                Utils.push_info(feedback, f"INFO: Removing layer: {layer.name()} from the project file")
-                qgs_project.removeMapLayer(layer.id())
-
-        if qgs_project.isDirty():
-            # File needs to be saved
-            qgs_project_file_name = qgs_project.fileName()
-            qgs_project.write(qgs_project_file_name)
-
-        return
+#    @staticmethod
+#    def remove_unselected_layers(ctl_file, feedback):
+#        """Remove from the .qgs project file all the unselected layers (only keep selected layers)"""
+#
+#        # Extract the name of the selected layers
+#        lst_layer_name = []
+#        for layer in ctl_file.layers:
+#            lst_layer_name.append(layer.name())
+#
+#        qgs_project = QgsProject.instance()
+#        for layer in qgs_project.mapLayers().values():
+#            if lst_layer_name.count(layer.name()) == 0:
+#                # The layer is not selected and must be removed
+#                file = True
+#                Utils.push_info(feedback, f"INFO: Removing layer: {layer.name()} from the project file")
+#                qgs_project.removeMapLayer(layer.id())
+#
+#        if qgs_project.isDirty():
+#            # File needs to be saved
+#            qgs_project_file_name = qgs_project.fileName()
+#            qgs_project.write(qgs_project_file_name)
+#
+#        return
 
     @staticmethod
     def copy_layer_gpkg(ctl_file, feedback):
@@ -614,8 +671,7 @@ class Utils():
         ctl_file.gpkg_file_name = os.path.join(ctl_file.control_file_dir, "qgis_vector_layers.gpkg")
         qgs_project = QgsProject.instance()
 
-        total = max(len(ctl_file.qgis_layer_name_en), \
-                    len(ctl_file.qgis_layer_name_fr))  # Total number of vector layer to process
+        total = DDR_INFO.get_nbr_layers()  # Total number of layers to process
         # Loop over each selected layers
         for i, src_layer in enumerate(qgs_project.mapLayers().values()):
             transform_context = QgsProject.instance().transformContext()
@@ -623,7 +679,7 @@ class Utils():
                 if src_layer.type() == QgsMapLayer.VectorLayer:
                     # Only copy vector layer
                     options = QgsVectorFileWriter.SaveVectorOptions()
-                    options.layerName = ctl_file.gpkg_layer_name[i]
+                    options.layerName = DDR_INFO.get_layer_short_name(src_layer)
                     options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer if Path(
                         ctl_file.gpkg_file_name).exists() else QgsVectorFileWriter.CreateOrOverwriteFile
                     options.feedback = None
@@ -639,11 +695,6 @@ class Utils():
             else:
                 Utils.push_info(feedback, f"WARNING: Layer: {src_layer.name()} is not spatial ==> transfered")
 
-
-#        dst_qgs_project_name = os.path.join(ctl_file.control_file_dir, ctl_file.in_project_filename)
-#        qgs_project.write(dst_qgs_project_name)
-
-
     @staticmethod
     def set_layer_data_source(ctl_file, feedback):
 
@@ -658,7 +709,7 @@ class Utils():
                 if src_layer.type() == QgsMapLayer.VectorLayer:
                     # Only process vector layer
                     if src_layer.type() == QgsMapLayer.VectorLayer:
-                        layer_name = ctl_file.gpkg_layer_name[i]          # src_layer.name()
+                        layer_name = DDR_INFO.get_layer_short_name(src_layer)          # src_layer.name()
                         uri = QgsProviderRegistry.instance().encodeUri('ogr',
                                                                        {'path': ctl_file.gpkg_file_name,
                                                                         'layerName': layer_name})
@@ -781,32 +832,22 @@ class UtilsGui():
         self.addParameter(
             QgsProcessingParameterAuthConfig('AUTHENTICATION', 'Authentication Configuration', defaultValue=None))
 
-#    @staticmethod
-#    def add_layers(self):
-#
-#        self.addParameter(QgsProcessingParameterMultipleLayers(
-#                name='LAYERS',
-#                description=self.tr("Select the input vector layer(s)  to publish "),
-#                layerType=QgsProcessing.TypeVectorAnyGeometry))
-
     @staticmethod
     def add_qgis_file(self):
 
         self.addParameter(
             QgsProcessingParameterFile(
                 name='QGIS_FILE_EN',
-                description='Select the English config file (.qgs)',
+                description=' Select the English QGIS project file (.qgs)',
                 extension='qgs',
-                behavior=QgsProcessingParameterFile.File,
-                optional=True))
+                behavior=QgsProcessingParameterFile.File))
 
         self.addParameter(
             QgsProcessingParameterFile(
                 name='QGIS_FILE_FR',
-                description='Select the French config file (.qgs)',
+                description=' Select the French QGIS project file (.qgs)',
                 extension='qgs',
-                behavior=QgsProcessingParameterFile.File,
-                optional=True))
+                behavior=QgsProcessingParameterFile.File))
 
     @staticmethod
     def add_department(self):
@@ -833,79 +874,88 @@ class UtilsGui():
     def add_download_info(self):
 
         lst_download_info_id = ["DDR_DOWNLOAD1"]
-        self.addParameter(QgsProcessingParameterEnum(
+        parameter = QgsProcessingParameterEnum(
             name='DOWNLOAD_INFO_ID',
             description=self.tr("Select the download info ID"),
             options=lst_download_info_id,
             defaultValue=lst_download_info_id[0],
             usesStaticStrings=True,
-            allowMultiple=False))
+            allowMultiple=False)
+        parameter.setFlags(parameter.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+        self.addParameter(parameter)
 
     @staticmethod
     def add_email(self):
 
-        self.addParameter(QgsProcessingParameterString(
+        parameter = QgsProcessingParameterString(
             name="EMAIL",
             defaultValue=str(DDR_INFO.get_email()),
-            description=self.tr('Enter your email address')))
+            description=self.tr('Enter your email address'))
+        parameter.setFlags(parameter.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+        self.addParameter(parameter)
 
     @staticmethod
     def add_qgs_server_id(self):
 
         lst_qgs_server_id = ['DDR_QGS1']
-        self.addParameter(QgsProcessingParameterEnum(
+        parameter  = QgsProcessingParameterEnum(
             name='QGS_SERVER_ID',
             description=self.tr('Select the QGIS server'),
             options=lst_qgs_server_id,
             defaultValue=lst_qgs_server_id[0],
             usesStaticStrings=True,
-            allowMultiple=False))
+            allowMultiple=False)
+        parameter.setFlags(parameter.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+        self.addParameter(parameter)
 
-    @staticmethod
-    def add_language(self):
+#    @staticmethod
+#    def add_language(self):
+#
+#        lst_language = ['English', 'French']
+#        self.addParameter(QgsProcessingParameterEnum(
+#            name='LANGUAGE',
+#            description=self.tr('Select the service language'),
+#            options=lst_language,
+#            defaultValue= lst_language[0],
+#            usesStaticStrings=True,
+#            allowMultiple=False))
 
-        lst_language = ['English', 'French']
-        self.addParameter(QgsProcessingParameterEnum(
-            name='LANGUAGE',
-            description=self.tr('Select the service language'),
-            options=lst_language,
-            defaultValue= lst_language[0],
-            usesStaticStrings=True,
-            allowMultiple=False))
-
-    @staticmethod
-    def add_service_schema_name(self):
-
-        self.addParameter(QgsProcessingParameterEnum(
-            name='SERVICE_SCHEMA_NAME',
-            description=self.tr("Select the schema name used for publication"),
-            options=DDR_INFO.get_department_lst(),
-            usesStaticStrings=True,
-            defaultValue="nrcan",
-            allowMultiple=False,
-            optional=True))
+#    @staticmethod
+#    def add_service_schema_name(self):
+#
+#        self.addParameter(QgsProcessingParameterEnum(
+#            name='SERVICE_SCHEMA_NAME',
+#            description=self.tr("Select the schema name used for publication"),
+#            options=DDR_INFO.get_department_lst(),
+#            usesStaticStrings=True,
+#            defaultValue="nrcan",
+#            allowMultiple=False,
+#            optional=True))
 
     @staticmethod
     def add_csz_themes(self):
 
         self.addParameter(QgsProcessingParameterEnum(
             name='CSZ_THEMES',
-            description=self.tr("Select the theme under which you want to publish your project in the clip ship zip (CSZ)"),
+            description=self.tr("Select the theme under which you want to publish your project in the clip-zip-ship (CZS)"),
             options=[""] + DDR_INFO.get_theme_lst("en"),
             usesStaticStrings=True,
-            allowMultiple=False))
+            allowMultiple=False,
+            optional=True))
 
     @staticmethod
     def add_keep_files(self):
 
         lst_flag = ['Yes', 'No']
-        self.addParameter(QgsProcessingParameterEnum(
+        parameter = QgsProcessingParameterEnum(
             name='KEEP_FILES',
             description=self.tr('Keep temporary files (for debug purpose)'),
             options=lst_flag,
             defaultValue=lst_flag[1],
             usesStaticStrings=True,
-            allowMultiple=False))
+            allowMultiple=False)
+        parameter.setFlags(parameter.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
+        self.addParameter(parameter)
 
     @staticmethod
     def read_parameters(self, ctl_file, parameters, context, feedback):
@@ -913,10 +963,10 @@ class UtilsGui():
         ctl_file.department = self.parameterAsString(parameters, 'DEPARTMENT', context)
         ctl_file.download_info_id = self.parameterAsString(parameters, 'DOWNLOAD_INFO_ID', context)
         ctl_file.metadata_uuid = self.parameterAsString(parameters, 'METADATA_UUID', context)
-        ctl_file.email = self.parameterAsString(parameters, 'EMAIL', context)
+###        ctl_file.email = self.parameterAsString(parameters, 'EMAIL', context)
         ctl_file.qgs_server_id = self.parameterAsString(parameters, 'QGS_SERVER_ID', context)
-        ctl_file.language = self.parameterAsString(parameters, 'LANGUAGE', context)
-        ctl_file.service_schema_name = self.parameterAsString(parameters, 'SERVICE_SCHEMA_NAME', context)
+###        ctl_file.language = self.parameterAsString(parameters, 'LANGUAGE', context)
+###        ctl_file.service_schema_name = self.parameterAsString(parameters, 'SERVICE_SCHEMA_NAME', context)
         ctl_file.keep_files = self.parameterAsString(parameters, 'KEEP_FILES', context)
         ctl_file.csz_collection_theme = self.parameterAsString(parameters, 'CSZ_THEMES', context)
 ###        ctl_file.layers = self.parameterAsLayerList(parameters, 'LAYERS', context)
@@ -993,12 +1043,12 @@ class DdrPublish(QgsProcessingAlgorithm):
         UtilsGui.add_qgis_file(self)
         UtilsGui.add_department(self)
         UtilsGui.add_uuid(self)
-        UtilsGui.add_download_info(self)
-        UtilsGui.add_email(self)
-        UtilsGui.add_qgs_server_id(self)
-        UtilsGui.add_language(self)
-        UtilsGui.add_service_schema_name(self)
+#        UtilsGui.add_language(self)
+#        UtilsGui.add_service_schema_name(self)
         UtilsGui.add_csz_themes(self)
+        UtilsGui.add_email(self)
+        UtilsGui.add_download_info(self)
+        UtilsGui.add_qgs_server_id(self)
         UtilsGui.add_keep_files(self)
 
     def read_parameters(self, ctl_file, parameters, context, feedback):
@@ -1111,12 +1161,12 @@ class DdrValidate(QgsProcessingAlgorithm):
         UtilsGui.add_qgis_file(self)
         UtilsGui.add_department(self)
         UtilsGui.add_uuid(self)
-        UtilsGui.add_download_info(self)
-        UtilsGui.add_email(self)
-        UtilsGui.add_qgs_server_id(self)
-        UtilsGui.add_language(self)
-        UtilsGui.add_service_schema_name(self)
+#        UtilsGui.add_language(self)
+#        UtilsGui.add_service_schema_name(self)
         UtilsGui.add_csz_themes(self)
+        UtilsGui.add_email(self)
+        UtilsGui.add_download_info(self)
+        UtilsGui.add_qgs_server_id(self)
         UtilsGui.add_keep_files(self)
 
     def read_parameters(self, ctl_file, parameters, context, feedback):
@@ -1226,12 +1276,12 @@ class DdrUnpublish(QgsProcessingAlgorithm):
         UtilsGui.add_qgis_file(self)
         UtilsGui.add_department(self)
         UtilsGui.add_uuid(self)
-        UtilsGui.add_download_info(self)
-        UtilsGui.add_email(self)
-        UtilsGui.add_qgs_server_id(self)
-        UtilsGui.add_language(self)
-        UtilsGui.add_service_schema_name(self)
+#        UtilsGui.add_language(self)
+#        UtilsGui.add_service_schema_name(self)
         UtilsGui.add_csz_themes(self)
+        UtilsGui.add_email(self)
+        UtilsGui.add_download_info(self)
+        UtilsGui.add_qgs_server_id(self)
         UtilsGui.add_keep_files(self)
 
     def read_parameters(self, ctl_file, parameters, context, feedback):
