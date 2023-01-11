@@ -11,7 +11,11 @@ import unicodedata
 from urllib.request import urlopen, Request
 import re
 
-text = "é ç "
+text = b'\u00e8a'
+x = text.decode('unicode_escape')
+print (x)
+0/0
+
 try:
     text = unicode(text, 'utf-8')
 except (TypeError, NameError): # unicode is a default on python 3

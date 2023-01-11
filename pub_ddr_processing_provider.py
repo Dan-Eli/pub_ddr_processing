@@ -27,7 +27,7 @@ __copyright__ = '(C) 2021 by Daniel Pilon'
 __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
-from .simplify_algorithm import DdrPublish, DdrValidate, DdrUnpublish, DdrLogin
+from .ddr_algorithm import DdrPublish, DdrValidate, DdrUnpublish, DdrLogin
 import os
 
 import inspect

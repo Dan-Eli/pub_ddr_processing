@@ -6,7 +6,7 @@
 # pylint: disable=relative-beyond-top-level
 
 # /***************************************************************************
-# simplify_algorithm.py
+# ddr_algorithm.py
 # ----------
 # Date                 : April 2021
 # copyright            : (C) 2020 by Natural Resources Canada
@@ -39,7 +39,7 @@ import unicodedata
 import zipfile
 from datetime import datetime
 from dataclasses import dataclass
-from pathlib import (Path, PurePath)
+from pathlib import Path
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.core import (Qgis, QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterDistance,
@@ -54,15 +54,17 @@ from qgis.core import (Qgis, QgsProcessing, QgsProcessingAlgorithm, QgsProcessin
 
 
 class ResponseCodes(object):
+    """This class manages response codes from the DDR API """
 
     @staticmethod
     def _push_response(feedback, response, status_code, message):
+        """This method displays messages in the log section of the processing tool"""
 
         try:
             Utils.push_info(feedback, "ERROR: ", f"{status_code} - {message}")
             try:
                 json_response = response.json()
-                results = json.dumps(json_response, indent=4)
+                results = json.dumps(json_response, indent=4, ensure_ascii=False)
                 Utils.push_info(feedback, "ERROR: ", results, pad_with_dot=True)
             except Exception:
                 pass
@@ -71,11 +73,13 @@ class ResponseCodes(object):
 
     @staticmethod
     def validate_project_file(feedback, response):
+        """This method manages the response codes for the DDR Publisher API Post /validate
+        This API validates if a project is compliant when a project is complain it can be published/unpublished"""
 
         status = response.status_code
         if status == 200:
             json_response = response.json()
-            results = json.dumps(json_response, indent=4)
+            results = json.dumps(json_response, indent=4, ensure_ascii=False)
             Utils.push_info(feedback, "INFO: ", results, pad_with_dot=True)
         elif status == 401:
             ResponseCodes._push_response(feedback, response, 401, "Access token is missing or invalid.")
@@ -89,8 +93,11 @@ class ResponseCodes(object):
 
     @staticmethod
     def create_access_token(feedback, response):
+        """This method manages the response codes for the DDR Publisher API Post /login
+        To log into the DDR API and get a valid token"""
 
         status = response.status_code
+
         if status == 200:
             Utils.push_info(feedback, "INFO: A token or a refresh token is given to the user")
             json_response = response.json()
@@ -115,11 +122,13 @@ class ResponseCodes(object):
 
     @staticmethod
     def read_csz_theme(feedback, response):
+        """This method manages the response codes for the DDR Publisher API Get /csz_themes
+        This method extract the themes from the DDR"""
 
         status = response.status_code
 
         if status == 200:
-            Utils.push_info(feedback, f"INFO: Satus code: {status}")
+            Utils.push_info(feedback, f"INFO: Status code: {status}")
             msg = "Reading the available Clip Zip Ship Themes."
             Utils.push_info(feedback, f"INFO: {msg}")
             json_response = response.json()
@@ -134,11 +143,13 @@ class ResponseCodes(object):
 
     @staticmethod
     def read_ddr_departments(feedback, response):
+        """This method manages the response codes for the DDR Publisher API Get /csz_departments
+           This method extract the departments from the DDR"""
 
         status = response.status_code
 
         if status == 200:
-            Utils.push_info(feedback, f"INFO: Satus code: {status}")
+            Utils.push_info(feedback, f"INFO: Status code: {status}")
             msg = "Reading the available DDR departments."
             Utils.push_info(feedback, f"INFO: {msg}")
             json_response = response.json()
@@ -153,6 +164,8 @@ class ResponseCodes(object):
 
     @staticmethod
     def read_user_email(feedback, response):
+        """This method manages the response codes for the DDR Publisher API Get /ddr_my_email
+           This method extract the email associated with user login"""
 
         status = response.status_code
 
@@ -172,6 +185,8 @@ class ResponseCodes(object):
 
     @staticmethod
     def publish_project_file(feedback, response):
+        """This method manages the response codes for the DDR Publisher API PUT /services
+        """
 
         status = response.status_code
 
@@ -189,6 +204,8 @@ class ResponseCodes(object):
 
     @staticmethod
     def unpublish_project_file(feedback, response):
+        """This method manages the response codes for the DDR Unpublisher API DELETE /services
+           """
 
         status = response.status_code
 
@@ -206,16 +223,20 @@ class ResponseCodes(object):
 
 
 class LoginToken(object):
+    """This class manages the login token needed to call the different DDR API end points"""
 
     def __init__(self):
 
         self.token = None
 
     def set_token(self, token):
+        """This method sets the token """
 
         self.token = token
 
     def get_token(self, feedback):
+        """This method allows to get the token. If the token is None than an error is rose because the login  was
+           not done"""
 
         if self.token is None:
             # The token has hot been initialised (no login)
@@ -226,6 +247,7 @@ class LoginToken(object):
 
 
 class DdrInfo(object):
+    """This class holds and manages different information extracted from the DDR using the API"""
 
     def __init__(self):
 
@@ -284,18 +306,22 @@ class DdrInfo(object):
 
         a = len(self.qgis_layer_name_en)
         b = len(self.qgis_layer_name_fr)
-        return max(a,b)
+        return max(a, b)
 
 
     def add_email(self, json_email):
+        """Add the email associated to the login"""
 
         self.json_email = json_email
 
     def get_email(self):
+        """Get the login associated to the login"""
 
         return self.json_email
 
     def add_departments(self, json_department):
+        """Add the the departments from the JSON response structure
+           Verify the validity of the JSON structure"""
 
         self.json_department = json_department
         # Verify the structure/content of the JSON document
@@ -307,7 +333,7 @@ class DdrInfo(object):
             raise UserMessageException("Invalid structure of the JSON theme response from the DDR request")
 
     def get_department_lst(self):
-        # Extract a department list
+        """Extract the departments in the form of a list"""
 
         department_lst = []
         for item in self.json_department:
@@ -317,6 +343,8 @@ class DdrInfo(object):
         return department_lst
 
     def add_themes(self, json_theme):
+        """Add the the themes from the JSON response structure
+           Verify the validity of the JSON structure"""
 
         self.json_theme = json_theme
         # Verify the structure/content of the JSON document
@@ -325,14 +353,14 @@ class DdrInfo(object):
                 theme_uuid = item['theme_uuid']
                 title = item['title']
                 # Replace the coma "," by a semi column ";" as QGIS processing enum does not like coma
-                title['en'] = title['en'].replace(',',';')
-                title['fr'] = title['fr'].replace(',',';')
+                title['en'] = title['en'].replace(',', ';')
+                title['fr'] = title['fr'].replace(',', ';')
         except KeyError:
             # Bad structure raise an exception and crash
             raise UserMessageException("Invalid structure of the JSON theme response from the DDR request")
 
     def get_theme_lst(self, language):
-        # Extract a theme list in a given language
+        """Extract the themes in the form of a list"""
 
         if language not in ["fr", "en"]:
             raise UserMessageException("Internal error: Invalid language")
@@ -344,7 +372,8 @@ class DdrInfo(object):
         return theme_lst
 
     def get_theme_uuid(self, title):
-        # Get the theme UUID for a theme title
+        """Get the theme UUID for a theme title
+           Raise an exception if the theme cannot be find in the list (should not happen...)"""
 
         for item in self.json_theme:
             item_uuid = item['theme_uuid']
@@ -354,7 +383,7 @@ class DdrInfo(object):
             if title in (item_title_en, item_title_fr):
                 break
             else:
-                theme_uuid = None
+                item_uuid = None
 
         if item_uuid is None:
             raise UserMessageException(f"Internal error: The 'title' is not found...")
@@ -368,35 +397,25 @@ LOGIN_TOKEN = LoginToken()
 
 @dataclass
 class ControlFile:
+    """Declare the fields in the control control file"""
 
-    """"
-    Declare the fields in the control control file
-    """
-##    department: str = None
     download_info_id: str = None
-##    email: str = None
+    email: str = None
     metadata_uuid: str = None
     qgis_server_id: str = None
     download_package_name: str = ''
     core_subject_term: str = ''
-##    csz_collection_theme: str = ''
     in_project_filename: str = None
     language: str = None
-##    service_schema_name: str = None
-    gpkg_file_name: str = None          # Name of Geopakage containing the vector layers
-    control_file_dir: str = None        # Name of temporary directory
-    control_file_name: str = None       # Name of the control file
-    zip_file_name: str = None           # Name of the zip file
-    keep_files: str = None              # Name of the flag to keep the temporary files and directory
-    json_document: str = None           # Name of the JSON document
-    dst_qgs_project_name: str = None    # Name of the output QGIS project file
-#    csz_themes_en: [] = None            # List of the themes_en for the CSZ
-#    csz_themes_fr: [] = None            # List of the themes_en for the CSZ
+    gpkg_file_name: str = None           # Name of Geopackage containing the vector layers
+    control_file_dir: str = None         # Name of temporary directory
+    control_file_name: str = None        # Name of the control file
+    zip_file_name: str = None            # Name of the zip file
+    keep_files: str = None               # Name of the flag to keep the temporary files and directory
+    json_document: str = None            # Name of the JSON document
+    dst_qgs_project_name: str = None     # Name of the output QGIS project file
     qgis_project_file_en: str = None     # Name of the input English QGIS project file
     qgis_project_file_fr: str = None     # Name of the input French QGIS project file
-#    qgis_layer_name_en: [] = None        # Name of the QGIS English layers
-#    qgis_layer_name_fr: [] = None        # Name of the QGIS French layers
-#    gpkg_layer_name: [] = None           # Name of the layers in the GPKG file
     out_qgs_project_file_en: str = None  # Name out the output English project file
     out_qgs_project_file_fr: str = None  # Name out the output English project file
 
@@ -405,13 +424,13 @@ class UserMessageException(Exception):
     """Exception raised when a message (likely an error message) needs to be sent to the User."""
     pass
 
-class Utils():
+class Utils:
     """Contains a list of static methods"""
 
     @staticmethod
     def process_algorithm(self, process_type, parameters, context, feedback):
 
-        # Init the project files
+        # Init the project files by resetting the layers structures
         DDR_INFO.init_project_file()
 
         # Create the control file data structure
@@ -420,18 +439,10 @@ class Utils():
         # Extract the parameters
         self.read_parameters(ctl_file, parameters, context, feedback)
 
-        # Validate the parameters
-        Utils.validate_parameters(ctl_file, feedback)
-
         # Copy the QGIS project file (.qgs)
         Utils.copy_qgis_project_file(ctl_file, feedback)
 
-        # Remove unselected layers from the .qgs project file
-        print ("Gérer le remove unselected layers...")
-####        Utils.remove_unselected_layers(ctl_file, feedback)
-
         # Copy the selected layers in the GPKG file
-#        import web_pdb; web_pdb.set_trace()
         Utils.copy_layer_gpkg(ctl_file, feedback)
 
         # Set the layer data source
@@ -447,8 +458,10 @@ class Utils():
         if process_type == "VALIDATE":
             DdrValidate.validate_project_file(ctl_file, parameters, context, feedback)
         elif process_type == "PUBLISH":
+            # Publish the project file
             DdrPublish.publish_project_file(ctl_file, parameters, context, feedback)
         elif process_type == "UNPUBLISH":
+            # Unpublish the project file
             DdrUnpublish.unpublish_project_file(ctl_file, parameters, context, feedback)
         else:
             raise UserMessageException(f"Internal error. Unknown Process Type: {process_type}")
@@ -482,7 +495,7 @@ class Utils():
             "generic_parameters": {
                 "department": ctl_file.department,
                 "download_info_id": ctl_file.download_info_id,
-                "email": DDR_INFO.get_email(),
+                "email": ctl_file.email,
                 "metadata_uuid": ctl_file.metadata_uuid,
                 "qgis_server_id": ctl_file.qgs_server_id,
                 "download_package_name": ctl_file.download_package_name,
@@ -504,7 +517,7 @@ class Utils():
         }
 
         # Serialize the JSON
-        json_object = json.dumps(json_control_file, indent=4)
+        json_object = json.dumps(json_control_file, indent=4, ensure_ascii=False)
 
         # Write the JSON document
         ctl_file.control_file_name = os.path.join(ctl_file.control_file_dir, "ControlFile.json")
@@ -547,7 +560,7 @@ class Utils():
 
     @staticmethod
     def read_user_email(ctl_file, feedback):
-        """Read the user email from end service end point"""
+        """Read the user email from the end service end point"""
 
         url = "https://qgis.ddr-stage.services.geo.ca/api/ddr_my_email"
         headers = {'accept': 'application/json',
@@ -560,14 +573,14 @@ class Utils():
         except requests.exceptions.RequestException as e:
             raise UserMessageException(f"Major problem with the DDR Publication API: {url}")
 
-
     @staticmethod
     def create_access_token(username, password, ctl_file, feedback):
         """Authentication of the username/password in order to get the access token"""
 
         url = 'https://qgis.ddr-stage.services.geo.ca/api/login'
         headers = {"accept": "application/json",
-                   "Content-type": "application/json"}
+                   "Content-type": "application/json",
+                   "charset":"utf-8" }
 
         Utils.push_info(feedback, "INFO: Authentication to DDR")
         Utils.push_info(feedback, f"INFO: HTTP Put Request: {url}")
@@ -606,63 +619,26 @@ class Utils():
         qgs_project.clear()
 
         # Read the French QGIS project
-        if ctl_file.qgis_project_file_fr != "":
-            # Read the project file
-            print("il faut en faire une sous-routine.... code trop pareil")
-            qgs_project.read(ctl_file.qgis_project_file_fr)
-            qgis_file_fr = Path(ctl_file.qgis_project_file_fr).name
-            ctl_file.out_qgs_project_file_fr = os.path.join(ctl_file.control_file_dir, qgis_file_fr)
-            qgs_project.write(ctl_file.out_qgs_project_file_fr)
-            Utils.push_info(feedback, "INFO: QGIS project file save as: ", ctl_file.out_qgs_project_file_fr)
+        qgs_project.read(ctl_file.qgis_project_file_fr)
+        qgis_file_fr = Path(ctl_file.qgis_project_file_fr).name
+        ctl_file.out_qgs_project_file_fr = os.path.join(ctl_file.control_file_dir, qgis_file_fr)
+        qgs_project.write(ctl_file.out_qgs_project_file_fr)
+        Utils.push_info(feedback, "INFO: QGIS project file save as: ", ctl_file.out_qgs_project_file_fr)
 
-            qgs_project = QgsProject.instance()
-            for src_layer in qgs_project.mapLayers().values():
-                DDR_INFO.add_layer(src_layer, "FR")
-#                if src_layer.type() == QgsMapLayer.VectorLayer:
-#                    ctl_file.qgis_layer_name_fr.append(src_layer.name())  # Add the name of the QGIS layer name
-#                   ctl_file.gpkg_layer_name.append(src_layer.name())  # Add the name of the GPKG layer name
-#                    print ("Short name:", src_layer.shortName())
+        qgs_project = QgsProject.instance()
+        for src_layer in qgs_project.mapLayers().values():
+            DDR_INFO.add_layer(src_layer, "FR")
 
         # Read the English QGIS project
-        if ctl_file.qgis_project_file_en != "":
-            # Read the project file
-            qgs_project.read(ctl_file.qgis_project_file_en)
-            qgis_file_en = Path(ctl_file.qgis_project_file_en).name
-            ctl_file.out_qgs_project_file_en = os.path.join(ctl_file.control_file_dir, qgis_file_en)
-            qgs_project.write(ctl_file.out_qgs_project_file_en)
-            Utils.push_info(feedback, "INFO: QGIS project file save as: ",ctl_file.out_qgs_project_file_en)
+        qgs_project.read(ctl_file.qgis_project_file_en)
+        qgis_file_en = Path(ctl_file.qgis_project_file_en).name
+        ctl_file.out_qgs_project_file_en = os.path.join(ctl_file.control_file_dir, qgis_file_en)
+        qgs_project.write(ctl_file.out_qgs_project_file_en)
+        Utils.push_info(feedback, "INFO: QGIS project file save as: ",ctl_file.out_qgs_project_file_en)
 
-            qgs_project = QgsProject.instance()
-            ctl_file.gpkg_layer_name = []  # Reset the Geopackage layer name
-            for src_layer in qgs_project.mapLayers().values():
-                DDR_INFO.add_layer(src_layer, "EN")
-#                if src_layer.type() == QgsMapLayer.VectorLayer:
-#                    ctl_file.qgis_layer_name_en.append(src_layer.name())  # Add the name of the QGIS layer name
-#                    ctl_file.gpkg_layer_name.append(src_layer.name())  # Add the name of the GPKG layer name
-
-#    @staticmethod
-#    def remove_unselected_layers(ctl_file, feedback):
-#        """Remove from the .qgs project file all the unselected layers (only keep selected layers)"""
-#
-#        # Extract the name of the selected layers
-#        lst_layer_name = []
-#        for layer in ctl_file.layers:
-#            lst_layer_name.append(layer.name())
-#
-#        qgs_project = QgsProject.instance()
-#        for layer in qgs_project.mapLayers().values():
-#            if lst_layer_name.count(layer.name()) == 0:
-#                # The layer is not selected and must be removed
-#                file = True
-#                Utils.push_info(feedback, f"INFO: Removing layer: {layer.name()} from the project file")
-#                qgs_project.removeMapLayer(layer.id())
-#
-#        if qgs_project.isDirty():
-#            # File needs to be saved
-#            qgs_project_file_name = qgs_project.fileName()
-#            qgs_project.write(qgs_project_file_name)
-#
-#        return
+        qgs_project = QgsProject.instance()
+        for src_layer in qgs_project.mapLayers().values():
+            DDR_INFO.add_layer(src_layer, "EN")
 
     @staticmethod
     def copy_layer_gpkg(ctl_file, feedback):
@@ -691,9 +667,9 @@ class Utils():
                                               options=options)
 
                 else:
-                    Utils.push_info(feedback, f"WARNING: Layer: {src_layer.name()} is not vector ==> Not transfered")
+                    Utils.push_info(feedback, f"WARNING: Layer: {src_layer.name()} is not vector ==> Not transferred")
             else:
-                Utils.push_info(feedback, f"WARNING: Layer: {src_layer.name()} is not spatial ==> transfered")
+                Utils.push_info(feedback, f"WARNING: Layer: {src_layer.name()} is not spatial ==> transferred")
 
     @staticmethod
     def set_layer_data_source(ctl_file, feedback):
@@ -727,13 +703,13 @@ class Utils():
 
     @staticmethod
     def create_zip_file(ctl_file, feedback):
-        """Create the zip file"""
+        """Create the zip file in the working directory"""
 
         # Change working directory to the temporary directory
         current_dir = os.getcwd()  # Save current directory
         os.chdir(ctl_file.control_file_dir)
 
-        # Create the zip file
+        # Create the zip file with the 4 files
         lst_file_to_zip = [Path(ctl_file.control_file_name).name,
                            Path(ctl_file.gpkg_file_name).name,
                            Path(ctl_file.out_qgs_project_file_en).name,
@@ -744,25 +720,8 @@ class Utils():
             for file_to_zip in lst_file_to_zip:
                 archive.write(file_to_zip)
 
-        # Reset the current directory
+        # Reset to the current directory
         os.chdir(current_dir)
-
-    @staticmethod
-    def validate_parameters(ctl_file, feedback):
-        """Validate the parameters"""
-
-        print ("Find a new way to validate that no layer has the same name ")
-        print ("Find a way to test that the here is the same number of layer and the source is the same")
-#        # Validate that there is no duplicate layer name
-#        tmp_layers = []
-#        for layer in ctl_file.layers:
-#            tmp_layers.append(layer.name())
-#
-#        for tmp_layer in tmp_layers:
-#            if tmp_layers.count(tmp_layer) > 1:
-#                # Layer name is not unique.
-#                # There will be a problem when copying the layers with the same name in the GPKG file
-#                raise UserMessageException(f"Remove duplicate layer name : {tmp_layer} in the QGS project file")
 
     @staticmethod
     def restore_original_project_file(ctl_file, feedback):
@@ -787,18 +746,16 @@ class Utils():
                     Utils.push_info(feedback, f"INFO: Deleting temporary directory and content: {ctl_file.control_file_dir}")
                     break
                 except Exception:
-                    # Wait a little bit...
+                    # Wait a little bit... to resolve synchronicity problem
                     time.sleep(.5)
 
     @staticmethod
     def push_info(feedback, message, suppl="", pad_with_dot=False):
+        """This method formats and logs the message in the processing toolbox log"""
 
         str_date_time = Utils.get_date_time()
-#        feedback.pushInfo(f"{str_date_time} - {str(message)}{str(suppl)}")
-        suppl = str(suppl)
-        suppl = suppl.encode('utf-8').decode('utf-8')
-        message = message.encode('utf-8').decode('utf-8')
-        lines = suppl.split("\n")
+        suppl = str(suppl)  # Make sure the "text" to display is a string
+        lines = suppl.split("\n")  # If the message is on many lines print many lines
         for line in lines:
             if pad_with_dot:
                 leading_sp = len(line) - len(line.lstrip())  # Extract the number of leading spaces
@@ -809,31 +766,30 @@ class Utils():
 class UtilsGui():
     """Contains a list of static methods"""
 
-    lst_department = ['eccc',  'nrcan']
-
     HELP_USAGE = """
         <b>Usage</b>
-        <u>Select the input vector layer(s) to publish</u>: Only select the layers you wish to publish. Non vector layers \
-        will not appear in the list of selectable layers.
+        <u>Select the English QGIS project file (.qgs)</u>: Select the project file with the ENGLISH layer description.
+        <u>Select the French QGIS project file (.qgs)</u>: Select the project file with the French layer description.
         <u>Select the department</u>: Select which department own the publication.
         <u>Enter the metadata UUID</u>: Enter the UUID associated to this UUID.
-        <u>Select the download info ID</u>: Download ID info (no choice).
+        <u>Select the CSZ theme</u>: Select the theme under which the project will be published in the clip ship zip (CSZ)
+        <b>Advanced Parameters</b>
         <u>Enter your email address</u>: Email address used to send publication notification.
+        <u>Select the download info ID</u>: Download ID info (no choice).
         <u>Select the QGIS server</u>: Name of the QGIS server used for the publication (no choice).
-        <u>Select the language</u>: Select the language English/French for the communication.  
-        <u>Select the schema named used for publication</u> : Name of the Schema used for the publication in the QGIS server.
-        <u>Select the CSZ theme</u>: Select the theme under which the project will be published in the clip ship zip (CSZ) 
         <u>Keep temporary files (for debug purpose)</u> : Flag (Yes/No) for keeping/deleting temporary files.
     """
 
     @staticmethod
     def add_login(self):
+        """Add Login menu"""
 
         self.addParameter(
             QgsProcessingParameterAuthConfig('AUTHENTICATION', 'Authentication Configuration', defaultValue=None))
 
     @staticmethod
     def add_qgis_file(self):
+        """Add Select EN and FR project file menu"""
 
         self.addParameter(
             QgsProcessingParameterFile(
@@ -851,6 +807,7 @@ class UtilsGui():
 
     @staticmethod
     def add_department(self):
+        """Add Select depertment menu"""
 
         self.addParameter(QgsProcessingParameterEnum(
             name='DEPARTMENT',
@@ -862,9 +819,11 @@ class UtilsGui():
 
     @staticmethod
     def add_uuid(self):
+        """Add Select UUID menu"""
 
         import uuid
-        idd = uuid.uuid4()
+        idd = ""
+#        idd = uuid.uuid4()
         self.addParameter(QgsProcessingParameterString(
             name="METADATA_UUID",
             defaultValue=str(idd),
@@ -872,6 +831,7 @@ class UtilsGui():
 
     @staticmethod
     def add_download_info(self):
+        """Add Select download info menu"""
 
         lst_download_info_id = ["DDR_DOWNLOAD1"]
         parameter = QgsProcessingParameterEnum(
@@ -886,6 +846,7 @@ class UtilsGui():
 
     @staticmethod
     def add_email(self):
+        """Add Select email menu"""
 
         parameter = QgsProcessingParameterString(
             name="EMAIL",
@@ -896,9 +857,10 @@ class UtilsGui():
 
     @staticmethod
     def add_qgs_server_id(self):
+        """Add Select server menu"""
 
         lst_qgs_server_id = ['DDR_QGS1']
-        parameter  = QgsProcessingParameterEnum(
+        parameter = QgsProcessingParameterEnum(
             name='QGS_SERVER_ID',
             description=self.tr('Select the QGIS server'),
             options=lst_qgs_server_id,
@@ -908,32 +870,9 @@ class UtilsGui():
         parameter.setFlags(parameter.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
         self.addParameter(parameter)
 
-#    @staticmethod
-#    def add_language(self):
-#
-#        lst_language = ['English', 'French']
-#        self.addParameter(QgsProcessingParameterEnum(
-#            name='LANGUAGE',
-#            description=self.tr('Select the service language'),
-#            options=lst_language,
-#            defaultValue= lst_language[0],
-#            usesStaticStrings=True,
-#            allowMultiple=False))
-
-#    @staticmethod
-#    def add_service_schema_name(self):
-#
-#        self.addParameter(QgsProcessingParameterEnum(
-#            name='SERVICE_SCHEMA_NAME',
-#            description=self.tr("Select the schema name used for publication"),
-#            options=DDR_INFO.get_department_lst(),
-#            usesStaticStrings=True,
-#            defaultValue="nrcan",
-#            allowMultiple=False,
-#            optional=True))
-
     @staticmethod
     def add_csz_themes(self):
+        """Add Select themes menu"""
 
         self.addParameter(QgsProcessingParameterEnum(
             name='CSZ_THEMES',
@@ -945,6 +884,7 @@ class UtilsGui():
 
     @staticmethod
     def add_keep_files(self):
+        """Add Keep file menu"""
 
         lst_flag = ['Yes', 'No']
         parameter = QgsProcessingParameterEnum(
@@ -963,13 +903,10 @@ class UtilsGui():
         ctl_file.department = self.parameterAsString(parameters, 'DEPARTMENT', context)
         ctl_file.download_info_id = self.parameterAsString(parameters, 'DOWNLOAD_INFO_ID', context)
         ctl_file.metadata_uuid = self.parameterAsString(parameters, 'METADATA_UUID', context)
-###        ctl_file.email = self.parameterAsString(parameters, 'EMAIL', context)
+        ctl_file.email = self.parameterAsString(parameters, 'EMAIL', context)
         ctl_file.qgs_server_id = self.parameterAsString(parameters, 'QGS_SERVER_ID', context)
-###        ctl_file.language = self.parameterAsString(parameters, 'LANGUAGE', context)
-###        ctl_file.service_schema_name = self.parameterAsString(parameters, 'SERVICE_SCHEMA_NAME', context)
         ctl_file.keep_files = self.parameterAsString(parameters, 'KEEP_FILES', context)
         ctl_file.csz_collection_theme = self.parameterAsString(parameters, 'CSZ_THEMES', context)
-###        ctl_file.layers = self.parameterAsLayerList(parameters, 'LAYERS', context)
         ctl_file.qgis_project_file_en = self.parameterAsString(parameters, 'QGIS_FILE_EN', context)
         ctl_file.qgis_project_file_fr = self.parameterAsString(parameters, 'QGIS_FILE_FR', context)
 
@@ -1009,6 +946,8 @@ class DdrPublish(QgsProcessingAlgorithm):
         return 'Management (second step)'
 
     def flags(self):
+        """Return the flags setting the NoThreading very important otherwise there are weird bugs...
+        """
 
         return super().flags() | QgsProcessingAlgorithm.FlagNoThreading
 
@@ -1043,8 +982,6 @@ class DdrPublish(QgsProcessingAlgorithm):
         UtilsGui.add_qgis_file(self)
         UtilsGui.add_department(self)
         UtilsGui.add_uuid(self)
-#        UtilsGui.add_language(self)
-#        UtilsGui.add_service_schema_name(self)
         UtilsGui.add_csz_themes(self)
         UtilsGui.add_email(self)
         UtilsGui.add_download_info(self)
@@ -1161,8 +1098,6 @@ class DdrValidate(QgsProcessingAlgorithm):
         UtilsGui.add_qgis_file(self)
         UtilsGui.add_department(self)
         UtilsGui.add_uuid(self)
-#        UtilsGui.add_language(self)
-#        UtilsGui.add_service_schema_name(self)
         UtilsGui.add_csz_themes(self)
         UtilsGui.add_email(self)
         UtilsGui.add_download_info(self)
@@ -1183,6 +1118,7 @@ class DdrValidate(QgsProcessingAlgorithm):
 #        import web_pdb; web_pdb.set_trace()
         url = 'https://qgis.ddr-stage.services.geo.ca/api/validate'
         headers = {'accept': 'application/json',
+                   'charset': 'utf-8',
                    'Authorization': 'Bearer ' + LOGIN_TOKEN.get_token(feedback)}
         files = {'zip_file': open(ctl_file.zip_file_name, 'rb')}
 
@@ -1276,8 +1212,6 @@ class DdrUnpublish(QgsProcessingAlgorithm):
         UtilsGui.add_qgis_file(self)
         UtilsGui.add_department(self)
         UtilsGui.add_uuid(self)
-#        UtilsGui.add_language(self)
-#        UtilsGui.add_service_schema_name(self)
         UtilsGui.add_csz_themes(self)
         UtilsGui.add_email(self)
         UtilsGui.add_download_info(self)
@@ -1386,7 +1320,6 @@ class DdrLogin(QgsProcessingAlgorithm):
         """Define the inputs and outputs of the algorithm.
         """
 
-        print ("Here change the name of the method...")
         UtilsGui.add_login(self)
 
     def read_parameters(self, ctl_file, parameters, context, feedback):
@@ -1411,7 +1344,8 @@ class DdrLogin(QgsProcessingAlgorithm):
             username = auth_info['username']
             password = auth_info['password']
         except KeyError:
-            raise UserMessageException("Unable to extract username/password from QGIS authetication system")
+            raise UserMessageException("Unable to extract username/password from QGIS "
+                                       "authentication system")
 
         return (username, password)
 
