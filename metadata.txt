@@ -3,17 +3,17 @@
 # This file should be included when you package your plugin.# Mandatory items: 
 
 [general]
-name=Geo Simplification (processing)
-qgisMinimumVersion=3.14
-description=This plugin contains different tools for line/polygon simplification and generalization
-version=1.2.0
+name=DDR Publication (processing)
+qgisMinimumVersion=3.24
+description=This plugin contains different tools for publication/unpublication in the DDR
+version=1.0.0
 author=Natural Resources Canada
 email=nrcan.qgis-plugins.rncan@canada.ca
 
 about=This plugin contains the following tool for line/polygon simplification and generalization: <p>- Chordal Axis</p> <p>- Reduce Bend</p> <p>- Simplify (D Peuker+)</p>
 
-tracker=https://github.com/NRCan/geo_sim_processing/issues
-repository=https://github.com/NRCan/geo_sim_processing
+tracker=https://github.com/federal-geospatial-platform/pub_ddr_processing/issues
+repository=https://github.com/federal-geospatial-platform/pub_ddr_processing
 # End of mandatory metadata
 
 # Recommended items:
@@ -21,38 +21,13 @@ repository=https://github.com/NRCan/geo_sim_processing
 hasProcessingProvider=yes
 # Uncomment the following line and add your changelog:
 changelog=
-    1.2.0 2021-05-07
-        - Code refactoring and major performance improvement for Reduce Bend
-        - Progress bar status improvement
-        - Avoid division by zero for "zero area" polygon
-    1.1.0 2021-04-22
-        - Complete rewrite of Simplify processing tool
-        - Simplify processing tool implements topological validation within and between features
-        - Topological validation is harmonized between Simplify and Reduce Bend (same behaviour)
-        - Reduce Bend performance improvement
-        - Progress bar status improvement
-        - Bug correction in ReduceBend
-    1.0.1 2021-04-12
-        - Bug correction in Simplify processing script when handling polygon features
-        - Correction some typo errors
-    1.0.0 2021-04-05
-        - First publication of geo_sim_processing on QGIS repository
-        - Code optimization of Reduce bend
-    0.6.1 2021-03-17
-        - Reorganize the zip deployment file and tag numbering
-    0.6.0 2021-02-15
-        - Chordal Axis now accept MultiPolygon and MultiLineString
-        - Chordal Axis will internally create the tessellation (triangles)
-        - Reduce Bend now accept MultiPolygon and MultiLineString
-        - Reduce Bend can reduce bend with wave or spiral form
-        - Simplify now accept MultiPolygon and MultiLineString
-    0.5.0 2021-01-27
+    1.0.0 2023-03-31
         - First release as a plugin
 
 # Tags are comma separated with spaces allowed
-tags=vector, topography, generalization, simplification, topology, constraint
+tags=vector, publication, metadata
 
-homepage=https://github.com/NRCan/geo_sim_processing
+homepage=https://github.com/federal-geospatial-platform/pub_ddr_processing
 icon=logo.png
 # experimental flag
 experimental=False
@@ -66,7 +41,7 @@ deprecated=False
 # plugin_dependencies=
 
 Category of the plugin: Raster, Vector, Database or Web
-category=Vector
+category=Vector, Database
 
 # If the plugin can run on QGIS Server.
 server=False
