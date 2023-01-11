@@ -286,21 +286,9 @@ class DdrInfo(object):
             raise UserMessageException(f"Duplicate short name {short_name} for layer {src_layer.name()}")
 
     def get_layer_short_name(self, src_layer):
+        """Get the short name from the layer"""
 
-        short_name = src_layer.shortName()
-
-        short_name = short_name.replace(" ", "_")
-        short_name = short_name.lower()
-
-        try:
-            short_name = unicode(short_name, 'utf-8')
-        except (TypeError, NameError):  # unicode is a default on python 3
-            pass
-        short_name = unicodedata.normalize('NFD', short_name)
-        short_name = short_name.encode('ascii', 'ignore')
-        short_name = short_name.decode("utf-8")
-
-        return short_name
+        return src_layer.shortName()
 
     def get_nbr_layers(self):
 
@@ -375,18 +363,23 @@ class DdrInfo(object):
         """Get the theme UUID for a theme title
            Raise an exception if the theme cannot be find in the list (should not happen...)"""
 
-        for item in self.json_theme:
-            item_uuid = item['theme_uuid']
-            item_title = item['title']
-            item_title_en = item_title['en']
-            item_title_fr = item_title['fr']
-            if title in (item_title_en, item_title_fr):
-                break
-            else:
-                item_uuid = None
+        if title is None or title == "":
 
-        if item_uuid is None:
-            raise UserMessageException(f"Internal error: The 'title' is not found...")
+            item_uuid = ""
+        else:
+            for item in self.json_theme:
+                item_uuid = item['theme_uuid']
+                item_title = item['title']
+                item_title_en = item_title['en']
+                item_title_fr = item_title['fr']
+                if title in (item_title_en, item_title_fr):
+                    break
+                else:
+                    item_uuid = None
+
+            if item_uuid is None:
+                # Nothing was found internal error
+                raise UserMessageException(f"Internal error: The 'title' is not found...")
 
         return item_uuid
 
@@ -685,11 +678,13 @@ class Utils:
                 if src_layer.type() == QgsMapLayer.VectorLayer:
                     # Only process vector layer
                     if src_layer.type() == QgsMapLayer.VectorLayer:
-                        layer_name = DDR_INFO.get_layer_short_name(src_layer)          # src_layer.name()
+
+                        qgs_layer_name = src_layer.name()
+                        gpkg_layer_name = DDR_INFO.get_layer_short_name(src_layer)
                         uri = QgsProviderRegistry.instance().encodeUri('ogr',
                                                                        {'path': ctl_file.gpkg_file_name,
-                                                                        'layerName': layer_name})
-                        src_layer.setDataSource(uri, layer_name, "ogr", provider_options)
+                                                                        'layerName': gpkg_layer_name})
+                        src_layer.setDataSource(uri, qgs_layer_name, "ogr", provider_options)
 
         qgs_project = QgsProject.instance()
         _set_layer()

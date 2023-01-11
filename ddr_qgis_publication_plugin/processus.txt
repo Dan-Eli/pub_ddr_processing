@@ -1,6 +1,0 @@
-Fonctions du plugin:
-- S'assurer que le projet (.qgs), les layers et les styles sont sauvegardés dans la BD
--Faire un call à l'API de publication en envoyant le ControlFile.json
-- S'assurer que le projet (.qgs) (Services Raster et Vecteur)
-- Service vecteurs eulement: S'assurer qu les layers et les styles sont sauvegardés dans la BD
-- Faire un call à l'API de publication en envoyant le ControlFile.json

@@ -1,5 +1,0 @@
-DDR Publication API URL:
-Swagger:
-http://10.68.130.138:5031/api/ui/
-API:
-http://10.68.130.138:5031/api/
